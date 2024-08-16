@@ -1,0 +1,12 @@
+[submodule "external/vcpkg"]
+	path = external/vcpkg
+	url = https://github.com/microsoft/vcpkg
+[submodule "external/opencv_contrib"]
+	path = external/opencv_contrib
+	url = https://github.com/opencv/opencv_contrib.git
+[submodule "external/opencv"]
+	path = external/opencv
+	url = https://github.com/opencv/opencv.git
+[submodule "vcpkg"]
+	path = vcpkg
+	url = https://github.com/microsoft/vcpkg.git
