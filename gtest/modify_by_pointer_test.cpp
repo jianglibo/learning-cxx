@@ -25,3 +25,23 @@ TEST(ModifyByPointerTest, BY_COPY)
     changeme_copy_pointer_1(p1);
     ASSERT_EQ(p1[0], 2) << "content of p1 should change.";
 }
+
+static void changeme_ref_pointer(int *&p) // p references to origin pointer
+{
+    p = new int(2); // origin p now points to new address.
+    p[0] = 2;       // changed the content of new address.
+}
+
+TEST(ModifyByPointerTest, BY_REF)
+{
+    int *p = new int(2);
+    uintptr_t address_origin = reinterpret_cast<uintptr_t>(p);
+    std::cout << "before: " << address_origin << std::endl;
+    p[0] = 1;
+    p[1] = 1;
+    changeme_ref_pointer(p);
+    uintptr_t address_after = reinterpret_cast<uintptr_t>(p);
+    std::cout << "after: " << address_after << std::endl;
+    ASSERT_NE(address_origin, address_after) << "address of p should change.";
+    ASSERT_EQ(p[0], 2) << "content of p should change.";
+}
