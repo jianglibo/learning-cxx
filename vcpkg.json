@@ -1,0 +1,19 @@
+{
+  "name": "learning-cxx",
+  "version-string": "latest",
+  "dependencies": [
+    "benchmark",
+    "cxxopts",
+    "eigen3",
+    "fmt",
+    "gtest",
+    {
+      "name": "nlohmann-json"
+    },
+    "spdlog",
+    {
+      "name": "vcpkg-cmake",
+      "host": true
+    }
+  ]
+}

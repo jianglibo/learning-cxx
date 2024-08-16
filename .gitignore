@@ -1,0 +1,26 @@
+TAGS
+*~
+*#*#
+*.#*
+*.o
+*.so
+.vscode/
+.idea/
+# test/
+build/
+vcpkg_installed/
+CMakeFiles/
+Testing/
+flipped.csv
+tmp.csv
+output.csv
+gtest/sample.tif
+tmp.csv.dsc
+interactive-output/
+speckle*
+.envrc.local
+my_profile_report.nsys-rep
+.vs/**
+.vs
+fixture_generated/*
+tt.log

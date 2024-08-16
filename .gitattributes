@@ -1,0 +1,5 @@
+fixtures/050MPa[[:space:]]150x-2.csv filter=lfs diff=lfs merge=lfs -text
+fixtures/100MPa[[:space:]]150x-1.csv filter=lfs diff=lfs merge=lfs -text
+fixtures/VEDDAC[[:space:]]7.1.zip filter=lfs diff=lfs merge=lfs -text
+fixtures/bfg-1.14.0.jar filter=lfs diff=lfs merge=lfs -text
+fixtures/0-50.csv filter=lfs diff=lfs merge=lfs -text
