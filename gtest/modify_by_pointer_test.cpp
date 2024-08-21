@@ -45,3 +45,21 @@ TEST(ModifyByPointerTest, BY_REF)
     ASSERT_NE(address_origin, address_after) << "address of p should change.";
     ASSERT_EQ(p[0], 2) << "content of p should change.";
 }
+
+static void changeme_pp(int **p) // a copy of pointer to pointer1.
+{
+    // even p is copied, but pointer1 keep the same.
+    *p = new int(2); // change the pointer1 points to
+    *p[0] = 2; 
+}
+
+TEST(ModifyByPointerTest, BY_PP)
+{
+    int *p = new int(2);
+    p[0] = 1;
+    p[1] = 1;
+    // &p, return a pointer points to p.
+    // even &p is copied, p keep the same one.
+    changeme_pp(&p);
+    ASSERT_EQ(p[0], 2) << "content of p should change.";
+}

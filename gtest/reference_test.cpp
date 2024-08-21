@@ -16,7 +16,9 @@ static void reference_to_array1(int *arr[2])
 static void reference_to_array2(int (*&arr)[2])
 {
 	*arr[0] = 2;
+	**arr = 2;
 	*arr[1] = 2;
+	**(arr + 1) = 2;
 }
 
 static void reference_to_array3(int (**&arr)[2])
