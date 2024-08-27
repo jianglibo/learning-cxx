@@ -181,3 +181,5 @@ add_definitions(-DEIGEN_NO_DEBUG)
 
 add_subdirectory(gtest)
 add_subdirectory(bm)
+add_subdirectory(asio-client)
+add_subdirectory(asio-server)

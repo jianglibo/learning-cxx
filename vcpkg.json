@@ -14,6 +14,9 @@
     {
       "name": "vcpkg-cmake",
       "host": true
+    },
+    {
+      "name": "boost-asio"
     }
   ]
 }
