@@ -138,7 +138,8 @@ class tcp_server
 public:
   tcp_server(boost::asio::io_context &io_context)
       : io_context_(io_context),
-        acceptor_(io_context, tcp::endpoint(tcp::v4(), 13))
+        acceptor_(io_context, tcp::endpoint(tcp::v4(), 13)),
+        resolver_(io_context)
   {
     start_accept();
   }
@@ -156,7 +157,6 @@ private:
                              {
                                new_connection->start();
                              }
-
                              start_accept();
                            });
   }
