@@ -16,7 +16,6 @@
 		(obj.*(std::get<0>(std::tie(__VA_ARGS__))), index++, 0)};
 // obj.*(std::get<index>(std::tie(__VA_ARGS__)), index++, 0)};
 
-
 namespace
 {
 	struct Type
@@ -75,4 +74,61 @@ TEST(MemberPointerTest, Initializer_list)
 
 	ASSERT_EQ(a, 1);
 	ASSERT_EQ(b, 2);
+}
+
+// Transformation function
+int transform(int x)
+{
+	return x * 2;
+}
+
+// Variadic template function to apply transformation
+template <typename... Args>
+std::initializer_list<int> transformArgs(Args... args)
+{
+	return {transform(args)...};
+}
+
+TEST(MemberPointerTest, nested)
+{
+	auto list = transformArgs(1, 2, 3, 4, 5);
+
+	for (int i : list)
+	{
+		std::cout << i << " ";
+	}
+	std::cout << std::endl;
+}
+
+#define TO_QUOTE(x) #x
+
+#define VARIADIC_MACRO(...)                         \
+	template <typename... Args>                     \
+	void _apply_tf(Args... args)                    \
+	{                                               \
+		int index = 0;                              \
+		(void)std::initializer_list<int>{           \
+			(printf("%s\n", "" + args), index++, 0)...}; \
+	}                                               \
+	void apply_tf()                                 \
+	{                                               \
+		std::cout << #__VA_ARGS__ << std::endl;     \
+		_apply_tf(__VA_ARGS__);                     \
+	}
+
+struct ___Ts
+{
+	int a;
+	int b;
+
+	VARIADIC_MACRO(a, b)
+};
+
+TEST(MemberPointerTest, variadicMacro)
+{
+	___Ts ts;
+	ts.a = 1;
+	ts.b = 2;
+
+	ts.apply_tf();
 }
