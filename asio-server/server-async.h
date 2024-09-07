@@ -14,26 +14,32 @@ public:
   using pointer = std::shared_ptr<tcp_connection>;
 
   static pointer create(boost::asio::io_context &io_context,
-                        const std::string &proxy_address, const std::string &proxy_port, bool debug_mode = false)
+                        const tcp::resolver::results_type &proxy_endpoints,
+                        // const std::string &proxy_address,
+                        // const std::string &proxy_port,
+                        bool debug_mode = false)
   {
-    return pointer(new tcp_connection(io_context, proxy_address, proxy_port, debug_mode));
+    // return pointer(new tcp_connection(io_context, proxy_address, proxy_port, debug_mode));
+    return pointer(new tcp_connection(io_context, proxy_endpoints, debug_mode));
   }
 
   tcp::socket &socket() { return socket_; }
 
   void start();
-  
 
 private:
   tcp_connection(boost::asio::io_context &io_context,
-                 const std::string &proxy_address, const std::string &proxy_port, bool debug_mode = false)
+                 const tcp::resolver::results_type &proxy_endpoints,
+                 //  const std::string &proxy_address,
+                 //  const std::string &proxy_port,
+                 bool debug_mode = false)
       : socket_(io_context),
         remote_socket_(io_context),
         resolver_(io_context),
-        proxy_address_(proxy_address),
-        proxy_port_(proxy_port),
+        proxy_endpoints_(proxy_endpoints),
+        // proxy_address_(proxy_address),
+        // proxy_port_(proxy_port),
         debug_mode(debug_mode),
-        waiting_to_proxy_(0),
         header_state_(HeaderState::READING_HEADERS)
   {
   }
@@ -96,13 +102,12 @@ private:
   tcp::socket socket_;
   tcp::socket remote_socket_;
   tcp::resolver resolver_;
-  std::string proxy_address_;
-  std::string proxy_port_;
+  // std::string proxy_address_;
+  // std::string proxy_port_;
   std::string request_buffer_;
   bool debug_mode;
   HeaderState header_state_;
-
-  size_t waiting_to_proxy_;
+  tcp::resolver::results_type proxy_endpoints_;
 
   enum
   {
@@ -112,18 +117,20 @@ private:
   char data_proxy_[max_length];
 };
 
-
-
 class tcp_server
 {
 public:
-  tcp_server(boost::asio::io_context &io_context, const std::string &proxy_address, const std::string &proxy_port, bool debug_mode = false)
+  tcp_server(boost::asio::io_context &io_context,
+             const std::string &proxy_address,
+             const std::string &proxy_port,
+             bool debug_mode = false)
       : io_context_(io_context),
         acceptor_(io_context, tcp::endpoint(tcp::v4(), 7890)),
         proxy_address_(proxy_address),
         proxy_port_(proxy_port),
         debug_mode(debug_mode)
   {
+    proxy_endpoints_ = tcp::resolver(io_context).resolve(proxy_address_, proxy_port_);
     start_accept();
   }
 
@@ -133,6 +140,7 @@ private:
   tcp::acceptor acceptor_;
   std::string proxy_address_;
   std::string proxy_port_;
+  tcp::resolver::results_type proxy_endpoints_;
   bool debug_mode;
 };
 

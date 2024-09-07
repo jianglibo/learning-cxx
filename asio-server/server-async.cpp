@@ -5,33 +5,21 @@
 void tcp_connection::start()
 {
   auto self(shared_from_this());
-  resolver_.async_resolve(proxy_address_, proxy_port_,
-                          [this, self](boost::system::error_code ec, tcp::resolver::results_type endpoints)
-                          {
-                            if (ec)
-                            {
-                              std::cerr << "Error resolving proxy address: " << ec.message() << std::endl;
-                              cleanup();
-                            }
-                            else
-                            {
-                              boost::asio::async_connect(remote_socket_, endpoints,
-                                                         [this, self](boost::system::error_code ec, const tcp::endpoint &)
-                                                         {
-                                                           if (!ec)
-                                                           {
-                                                             //  std::cout << "Connected to proxy server done." << std::endl;
-                                                             do_read_client();
-                                                             do_read_proxy();
-                                                           }
-                                                           else
-                                                           {
-                                                             std::cerr << "Error connecting to proxy server: " << ec.message() << std::endl;
-                                                             cleanup();
-                                                           }
-                                                         });
-                            }
-                          });
+  boost::asio::async_connect(remote_socket_, proxy_endpoints_,
+                             [this, self](boost::system::error_code ec, const tcp::endpoint &)
+                             {
+                               if (!ec)
+                               {
+                                 //  std::cout << "Connected to proxy server done." << std::endl;
+                                 do_read_client();
+                                 do_read_proxy();
+                               }
+                               else
+                               {
+                                 std::cerr << "Error connecting to proxy server: " << ec.message() << std::endl;
+                                 cleanup();
+                               }
+                             });
 }
 
 std::string tcp_connection::parse_http_request(const std::string &request)
@@ -107,18 +95,18 @@ void tcp_connection::do_read_client()
                                 if (has_complete_http_request(request_buffer_))
                                 {
                                   // Process the full HTTP request
-                                  std::string modified_request = parse_http_request(request_buffer_);
+                                  request_buffer_ = parse_http_request(request_buffer_);
                                   // Clear the buffer and continue processing the request
-                                  request_buffer_.clear();
+                                  // request_buffer_.clear();
 
                                   // if modified_request.size() > max_length, we need to send it in chunks
-                                  std::size_t total_length = modified_request.size();
+                                  // std::size_t total_length = modified_request.size();
                                   // Loop to send the request in chunks if it's larger than max_length
-                                  std::size_t chunk_size = std::min(static_cast<size_t>(max_length), total_length);
-                                  std::memcpy(data_client_, modified_request.data(), chunk_size);
-                                  waiting_to_proxy_ = std::max(total_length - chunk_size, (size_t)0);
+                                  // std::size_t chunk_size = std::min(static_cast<size_t>(max_length), total_length);
+                                  // std::memcpy(data_client_, modified_request.data(), chunk_size);
+                                  // waiting_to_proxy_ = std::max(total_length - chunk_size, (size_t)0);
                                   // when invoking do_write_proxy, do_read_client will not be called till do_write_proxy is done.
-                                  do_write_proxy(chunk_size);
+                                  do_write_proxy(0);
                                 }
                                 else
                                 {
@@ -143,34 +131,47 @@ void tcp_connection::do_write_proxy(std::size_t length)
   auto self(shared_from_this());
   if (length == 0)
   {
-    do_read_client();
-    return;
-  }
-  // data from client
-  boost::asio::async_write(remote_socket_, boost::asio::buffer(data_client_, length),
-                           [this, self](boost::system::error_code ec, std::size_t)
-                           {
-                             if (!ec)
-                             {
-                               //  std::cout << "Data written to proxy server" << std::endl;
-                               //  do_read_proxy();
-                               if (waiting_to_proxy_ > 0)
+    if (!request_buffer_.empty())
+    {
+      boost::asio::async_write(remote_socket_, boost::asio::buffer(request_buffer_),
+                               [this, self](boost::system::error_code ec, std::size_t)
                                {
-                                 std::size_t chunk_size = std::min(static_cast<size_t>(max_length), waiting_to_proxy_);
-                                 waiting_to_proxy_ -= chunk_size;
-                                 do_write_proxy(chunk_size);
+                                 if (!ec)
+                                 {
+                                   request_buffer_.clear();
+                                   do_read_client();
+                                 }
+                                 else
+                                 {
+                                   std::cerr << "Error writing to proxy server: " << ec.message() << std::endl;
+                                   cleanup();
+                                 }
+                               });
+    }
+    else
+    {
+      do_read_client();
+    }
+  }
+  else
+  {
+    // data from client
+    boost::asio::async_write(remote_socket_, boost::asio::buffer(data_client_, length),
+                             [this, self](boost::system::error_code ec, std::size_t)
+                             {
+                               if (!ec)
+                               {
+                                 //  std::cout << "Data written to proxy server" << std::endl;
+                                 //  do_read_proxy();
+                                 do_read_client();
                                }
                                else
                                {
-                                 do_read_client();
+                                 std::cerr << "Error writing to proxy server: " << ec.message() << std::endl;
+                                 cleanup();
                                }
-                             }
-                             else
-                             {
-                               std::cerr << "Error writing to proxy server: " << ec.message() << std::endl;
-                               cleanup();
-                             }
-                           });
+                             });
+  }
 }
 
 void tcp_connection::do_read_proxy()
@@ -220,7 +221,8 @@ void tcp_connection::do_write_client(std::size_t length)
 
 void tcp_server::start_accept()
 {
-  auto new_connection = tcp_connection::create(io_context_, proxy_address_, proxy_port_, debug_mode);
+  // auto new_connection = tcp_connection::create(io_context_, proxy_address_, proxy_port_, debug_mode);
+  auto new_connection = tcp_connection::create(io_context_, proxy_endpoints_, debug_mode);
 
   acceptor_.async_accept(new_connection->socket(),
                          [this, new_connection](boost::system::error_code ec)
