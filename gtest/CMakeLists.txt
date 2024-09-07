@@ -29,6 +29,9 @@ option(GTEST_COLOR "Enable colored output for gtest" ON)
 
 file(GLOB SOURCES *_test.cpp *_test.cu)
 
+file(GLOB LIB_SOURCES ../asio-server/*.cpp)
+include_directories(${CMAKE_SOURCE_DIR}/asio-server)
+
 
 # add_definitions(-DTHRUST_HOST_SYSTEM=THRUST_HOST_SYSTEM_OMP) # For OpenMP
 # list(FILTER LIB_SOURCES EXCLUDE REGEX ".*main.cu")
@@ -46,16 +49,7 @@ foreach(SOURCE ${SOURCES})
   project(${OUTPUT}-PRJ CXX CUDA)
   message("building ${OUTPUT} from ${SOURCE}")
 
-  # for each file, build a binary
-  # add_executable(${OUTPUT} ${SOURCE} ${LIB_SOURCES})
-  # if output endswith .cu
-  if(${SOURCE} MATCHES ".*cu$")
-    # add_executable(${OUTPUT} ${SOURCE} testutil_host_device.cuh testutil_device.cuh)
-    add_executable(${OUTPUT} ${SOURCE})
-  else()
-    # add_executable(${OUTPUT} ${SOURCE} testutil_host_device.cuh)
-    add_executable(${OUTPUT} ${SOURCE})
-  endif()
+  add_executable(${OUTPUT} ${SOURCE} ${LIB_SOURCES})
 
   if(OpenMP_CXX_FOUND)
       target_compile_definitions(${OUTPUT} PRIVATE THRUST_HOST_SYSTEM=THRUST_HOST_SYSTEM_OMP)

@@ -2,6 +2,7 @@ project(DEMO-ASIO-PRJ CXX)
 
 set(APP_NAME asio-server)
 set(APP_NAME_ASYNC asio-server-async)
+set(APP_NAME_ASYNC2 asio-server-async2)
 find_package(Boost REQUIRED COMPONENTS asio)
 
 # file(GLOB APP_SOURCE *.cpp)
@@ -11,5 +12,5 @@ find_package(Boost REQUIRED COMPONENTS asio)
 add_executable(${APP_NAME} server.cpp)
 target_link_libraries(${APP_NAME} PRIVATE Boost::asio)
 
-add_executable(${APP_NAME_ASYNC} server-async.cpp)
-target_link_libraries(${APP_NAME_ASYNC} PRIVATE Boost::asio)
+# add_executable(${APP_NAME_ASYNC} server-async.cpp)
+# target_link_libraries(${APP_NAME_ASYNC} PRIVATE Boost::asio)

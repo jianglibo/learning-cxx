@@ -1,433 +1,239 @@
-#include <iostream>
-#include <boost/asio.hpp>
-#include <boost/bind/bind.hpp>
+#include "server-async.h"
 
-using boost::asio::ip::tcp;
+// tcp::socket &socket() { return socket_; }
 
-class tcp_connection : public std::enable_shared_from_this<tcp_connection>
+void tcp_connection::start()
 {
-public:
-  using pointer = std::shared_ptr<tcp_connection>;
-
-  static pointer create(boost::asio::io_context &io_context,
-                        const std::string &proxy_address, const std::string &proxy_port)
-  {
-    return pointer(new tcp_connection(io_context, proxy_address, proxy_port));
-  }
-
-  tcp::socket &socket() { return socket_; }
-
-  void start()
-  {
-    do_read();
-  }
-
-private:
-  tcp_connection(boost::asio::io_context &io_context,
-                 const std::string &proxy_address, const std::string &proxy_port)
-      : socket_(io_context),
-        remote_socket_(io_context),
-        resolver_(io_context),
-        proxy_address_(proxy_address),
-        proxy_port_(proxy_port)
-  {
-  }
-
-  void do_read()
-  {
-    auto self(shared_from_this());
-    socket_.async_read_some(boost::asio::buffer(data_, max_length),
-                            [this, self](boost::system::error_code ec, std::size_t length)
+  auto self(shared_from_this());
+  resolver_.async_resolve(proxy_address_, proxy_port_,
+                          [this, self](boost::system::error_code ec, tcp::resolver::results_type endpoints)
+                          {
+                            if (ec)
                             {
-                              if (ec)
-                              {
-                                if (ec == boost::asio::error::eof)
-                                {
-                                  // Connection closed cleanly by the client
-                                  std::cout << "Client closed connection" << std::endl;
-                                }
-                                else
-                                {
-                                  std::cerr << "Error reading from client: " << ec.message() << std::endl;
-                                }
-                                cleanup();
-                                return;
-                              }
-                              std::cout << "Data read from client, length: " << length << std::endl;
-                              do_forward(length);
-                            });
-  }
+                              std::cerr << "Error resolving proxy address: " << ec.message() << std::endl;
+                              cleanup();
+                            }
+                            else
+                            {
+                              boost::asio::async_connect(remote_socket_, endpoints,
+                                                         [this, self](boost::system::error_code ec, const tcp::endpoint &)
+                                                         {
+                                                           if (!ec)
+                                                           {
+                                                             //  std::cout << "Connected to proxy server done." << std::endl;
+                                                             do_read_client();
+                                                             do_read_proxy();
+                                                           }
+                                                           else
+                                                           {
+                                                             std::cerr << "Error connecting to proxy server: " << ec.message() << std::endl;
+                                                             cleanup();
+                                                           }
+                                                         });
+                            }
+                          });
+}
 
-  void do_forward(std::size_t length)
-  {
-    auto self(shared_from_this());
-    if (!remote_socket_.is_open())
-    {
-      resolver_.async_resolve(proxy_address_, proxy_port_,
-                              [this, self, length](boost::system::error_code ec, tcp::resolver::results_type endpoints)
-                              {
-                                if (!ec)
-                                {
-                                  boost::asio::async_connect(remote_socket_, endpoints,
-                                                             [this, self, length](boost::system::error_code ec, const tcp::endpoint &)
-                                                             {
-                                                               if (!ec)
-                                                               {
-                                                                 std::cout << "Connected to proxy server" << std::endl;
-                                                                 do_write(length);
-                                                               }
-                                                               else
-                                                               {
-                                                                 std::cerr << "Error connecting to proxy server: " << ec.message() << std::endl;
-                                                                 cleanup();
-                                                               }
-                                                             });
-                                }
-                                else
-                                {
-                                  std::cerr << "Error resolving proxy address: " << ec.message() << std::endl;
-                                  cleanup();
-                                }
-                              });
-    }
-    else
-    {
-      do_write(length);
-    }
-  }
-
-  void do_write(std::size_t length)
-  {
-    auto self(shared_from_this());
-    boost::asio::async_write(remote_socket_, boost::asio::buffer(data_, length),
-                             [this, self](boost::system::error_code ec, std::size_t)
-                             {
-                               if (!ec)
-                               {
-                                 std::cout << "Data written to proxy server" << std::endl;
-                                 do_read_remote();
-                               }
-                               else
-                               {
-                                 std::cerr << "Error writing to proxy server: " << ec.message() << std::endl;
-                                 cleanup();
-                               }
-                             });
-  }
-
-  void do_read_remote()
-  {
-    auto self(shared_from_this());
-    remote_socket_.async_read_some(boost::asio::buffer(data_, max_length),
-                                   [this, self](boost::system::error_code ec, std::size_t length)
-                                   {
-                                     if (ec)
-                                     {
-                                       if (ec == boost::asio::error::eof)
-                                       {
-                                         std::cout << "Proxy server closed connection" << std::endl;
-                                       }
-                                       else
-                                       {
-                                         std::cerr << "Error reading from proxy server: " << ec.message() << std::endl;
-                                       }
-                                       cleanup();
-                                       return;
-                                     }
-                                     std::cout << "Data read from proxy server, length: " << length << std::endl;
-                                     do_write_client(length);
-                                   });
-  }
-
-  void do_write_client(std::size_t length)
-  {
-    auto self(shared_from_this());
-    boost::asio::async_write(socket_, boost::asio::buffer(data_, length),
-                             [this, self](boost::system::error_code ec, std::size_t)
-                             {
-                               if (!ec)
-                               {
-                                 std::cout << "Data written to client" << std::endl;
-                                 do_read();
-                               }
-                               else
-                               {
-                                 std::cerr << "Error writing to client: " << ec.message() << std::endl;
-                                 cleanup();
-                               }
-                             });
-  }
-
-  void cleanup()
-  {
-    // Close both sockets
-    boost::system::error_code ec;
-    if (socket_.is_open())
-      socket_.close(ec);
-    if (remote_socket_.is_open())
-      remote_socket_.close(ec);
-
-    if (ec)
-    {
-      std::cerr << "Error during cleanup: " << ec.message() << std::endl;
-    }
-  }
-
-  tcp::socket socket_;
-  tcp::socket remote_socket_;
-  tcp::resolver resolver_;
-  std::string proxy_address_;
-  std::string proxy_port_;
-  enum
-  {
-    max_length = 4096
-  };
-  char data_[max_length];
-};
-
-class tcp_server
+std::string tcp_connection::parse_http_request(const std::string &request)
 {
-public:
-  tcp_server(boost::asio::io_context &io_context, const std::string &proxy_address, const std::string &proxy_port)
-      : io_context_(io_context),
-        acceptor_(io_context, tcp::endpoint(tcp::v4(), 7890)),
-        proxy_address_(proxy_address),
-        proxy_port_(proxy_port)
+  std::istringstream request_stream(request);
+  std::string method, url, version;
+  std::string line;
+  std::stringstream new_request;
+
+  // Read the first line (request line)
+  if (std::getline(request_stream, line))
   {
-    start_accept();
+    std::istringstream line_stream(line);
+    line_stream >> method >> url >> version;
+    std::cout << line << std::endl;
+
+    // // If it's an HTTP proxy request (contains a full URL starting with "http://")
+    // if (url.substr(0, 7) == "http://")
+    // {
+    //   auto pos = url.find('/', 7); // Find the first '/' after "http://"
+    //   if (pos != std::string::npos)
+    //   {
+    //     url = url.substr(pos); // Strip the "http://hostname" part, keep only the path
+    //   }
+    // }
+
+    // Construct the new request line with the modified URL (if needed)
+    new_request << method << " " << url << " " << version << "\r\n";
   }
 
-private:
-  void start_accept()
+  // Add the remaining headers and body
+  while (std::getline(request_stream, line))
   {
-    auto new_connection = tcp_connection::create(io_context_, proxy_address_, proxy_port_);
+    new_request << line << "\r\n";
+    std::cout << "Header: " << line << std::endl;
+  }
+  // Add a blank line to indicate the end of the headers
+  new_request << "\r\n";
+  std::cout << "parse header done." << std::endl;
+  return new_request.str();
+}
 
-    acceptor_.async_accept(new_connection->socket(),
-                           [this, new_connection](boost::system::error_code ec)
+void tcp_connection::do_read_client()
+{
+  auto self(shared_from_this());
+  // std::cout << "do_read_client get called." << std::endl;
+  socket_.async_read_some(boost::asio::buffer(data_client_, max_length),
+                          [this, self](boost::system::error_code ec, std::size_t length)
+                          {
+                            // std::cout << "do_read_client get completed." << std::endl;
+                            if (ec)
+                            {
+                              if (ec == boost::asio::error::eof)
+                              {
+                                // Connection closed cleanly by the client
+                                // std::cout << "Client closed connection" << std::endl;
+                              }
+                              else
+                              {
+                                std::cerr << "Error reading from client: " << ec.message() << std::endl;
+                              }
+                              cleanup();
+                              return;
+                            }
+                            if (debug_mode)
+                            {
+                              if (header_state_ == HeaderState::READING_HEADERS)
+                              {
+                                // Accumulate the received data into the request buffer
+                                request_buffer_.append(data_client_, length);
+                                // std::cout << "Data read from client, length: " << length << std::endl;
+                                // Check if we have received a full HTTP request (i.e., headers end with \r\n\r\n)
+                                if (has_complete_http_request(request_buffer_))
+                                {
+                                  // Process the full HTTP request
+                                  std::string modified_request = parse_http_request(request_buffer_);
+                                  // Clear the buffer and continue processing the request
+                                  request_buffer_.clear();
+
+                                  // if modified_request.size() > max_length, we need to send it in chunks
+                                  std::size_t total_length = modified_request.size();
+                                  // Loop to send the request in chunks if it's larger than max_length
+                                  std::size_t chunk_size = std::min(static_cast<size_t>(max_length), total_length);
+                                  std::memcpy(data_client_, modified_request.data(), chunk_size);
+                                  waiting_to_proxy_ = std::max(total_length - chunk_size, (size_t)0);
+                                  // when invoking do_write_proxy, do_read_client will not be called till do_write_proxy is done.
+                                  do_write_proxy(chunk_size);
+                                }
+                                else
+                                {
+                                  // Not a complete request yet, continue reading
+                                  do_read_client();
+                                }
+                              }
+                              else if (header_state_ == HeaderState::READING_BODY)
+                              {
+                                do_write_proxy(length);
+                              }
+                            }
+                            else
+                            {
+                              do_write_proxy(length);
+                            }
+                          });
+}
+
+void tcp_connection::do_write_proxy(std::size_t length)
+{
+  auto self(shared_from_this());
+  if (length == 0)
+  {
+    do_read_client();
+    return;
+  }
+  // data from client
+  boost::asio::async_write(remote_socket_, boost::asio::buffer(data_client_, length),
+                           [this, self](boost::system::error_code ec, std::size_t)
                            {
                              if (!ec)
                              {
-                               std::cout << "Accepted new connection" << std::endl;
-                               new_connection->start();
+                               //  std::cout << "Data written to proxy server" << std::endl;
+                               //  do_read_proxy();
+                               if (waiting_to_proxy_ > 0)
+                               {
+                                 std::size_t chunk_size = std::min(static_cast<size_t>(max_length), waiting_to_proxy_);
+                                 waiting_to_proxy_ -= chunk_size;
+                                 do_write_proxy(chunk_size);
+                               }
+                               else
+                               {
+                                 do_read_client();
+                               }
                              }
                              else
                              {
-                               std::cerr << "Error accepting connection: " << ec.message() << std::endl;
+                               std::cerr << "Error writing to proxy server: " << ec.message() << std::endl;
+                               cleanup();
                              }
-                             start_accept();
                            });
-  }
-
-  boost::asio::io_context &io_context_;
-  tcp::acceptor acceptor_;
-  std::string proxy_address_;
-  std::string proxy_port_;
-};
-
-int main()
-{
-  try
-  {
-    boost::asio::io_context io_context;
-    tcp_server server(io_context, "192.168.0.90", "8000");
-    io_context.run();
-  }
-  catch (std::exception &e)
-  {
-    std::cerr << "Exception: " << e.what() << std::endl;
-  }
-
-  return 0;
 }
 
-// #include <iostream>
-// #include <memory>
-// #include <utility>
-// #include <boost/asio.hpp>
+void tcp_connection::do_read_proxy()
+{
+  auto self(shared_from_this());
+  remote_socket_.async_read_some(boost::asio::buffer(data_proxy_, max_length),
+                                 [this, self](boost::system::error_code ec, std::size_t length)
+                                 {
+                                   if (ec)
+                                   {
+                                     if (ec == boost::asio::error::eof)
+                                     {
+                                       //  std::cout << "Proxy server closed connection" << std::endl;
+                                     }
+                                     else
+                                     {
+                                       std::cerr << "Error reading from proxy server: " << ec.message() << std::endl;
+                                     }
+                                     cleanup();
+                                     return;
+                                   }
+                                   //  std::cout << "Data read from proxy server, length: " << length << std::endl;
+                                   do_write_client(length);
+                                 });
+}
 
-// using boost::asio::ip::tcp;
+void tcp_connection::do_write_client(std::size_t length)
+{
+  auto self(shared_from_this());
+  // data from proxy
+  boost::asio::async_write(socket_, boost::asio::buffer(data_proxy_, length),
+                           [this, self](boost::system::error_code ec, std::size_t)
+                           {
+                             if (!ec)
+                             {
+                               //  std::cout << "Data written to client, read more from proxy" << std::endl;
+                               //  do_read_client();
+                               do_read_proxy();
+                             }
+                             else
+                             {
+                               std::cerr << "Error writing to client: " << ec.message() << std::endl;
+                               cleanup();
+                             }
+                           });
+}
 
-// class tcp_connection : public std::enable_shared_from_this<tcp_connection>
-// {
-// public:
-//   typedef std::shared_ptr<tcp_connection> pointer;
+void tcp_server::start_accept()
+{
+  auto new_connection = tcp_connection::create(io_context_, proxy_address_, proxy_port_, debug_mode);
 
-//   static pointer create(boost::asio::io_context &io_context, const std::string &proxy_address, const std::string &proxy_port)
-//   {
-//     return pointer(new tcp_connection(io_context, proxy_address, proxy_port));
-//   }
-
-//   tcp::socket &socket()
-//   {
-//     return socket_;
-//   }
-
-//   void start()
-//   {
-//     // Start the async read operation from the client socket
-//     do_read();
-//   }
-
-// private:
-//   tcp_connection(boost::asio::io_context &io_context, const std::string &proxy_address, const std::string &proxy_port)
-//       : socket_(io_context), remote_socket_(io_context), proxy_address_(proxy_address), proxy_port_(proxy_port), resolver_(io_context)
-//   {
-//   }
-
-//   void do_read()
-//   {
-//     auto self(shared_from_this());
-//     socket_.async_read_some(boost::asio::buffer(data_, max_length),
-//                             [this, self](boost::system::error_code ec, std::size_t length)
-//                             {
-//                               if (!ec)
-//                               {
-//                                 // Forward data to the remote server (proxy server)
-//                                 do_forward(length);
-//                               } else {
-//                                 std::cerr << "Read error: " << ec.message() << std::endl;
-//                               }
-//                             });
-//   }
-
-//   void do_forward(std::size_t length)
-//   {
-//     auto self(shared_from_this());
-//     if (!remote_socket_.is_open())
-//     {
-//       // Connect to the proxy server directly
-//       tcp::resolver::query query(proxy_address_, proxy_port_);
-//       auto endpoints = resolver_.resolve(query);
-//       std::cout << "Connecting to proxy server " << proxy_address_ << ":" << proxy_port_ << std::endl;
-
-//       boost::asio::async_connect(remote_socket_, endpoints,
-//                                  [this, self, length](boost::system::error_code ec, const tcp::endpoint &)
-//                                  {
-//                                    if (!ec)
-//                                    {
-//                                      do_write(length);
-//                                    }
-//                                    else
-//                                    {
-//                                      std::cerr << "Connect error: " << ec.message() << std::endl;
-//                                    }
-//                                  });
-//     }
-//     else
-//     {
-//       do_write(length);
-//     }
-//   }
-
-//   void do_write(std::size_t length)
-//   {
-//     auto self(shared_from_this());
-//     boost::asio::async_write(remote_socket_, boost::asio::buffer(data_, length),
-//                              [this, self](boost::system::error_code ec, std::size_t)
-//                              {
-//                                if (!ec)
-//                                {
-//                                  // Read response from remote server (proxy server)
-//                                  do_read_remote();
-//                                } else {
-//                                   std::cerr << "Write error: " << ec.message() << std::endl;
-//                                }
-//                              });
-//   }
-
-//   void do_read_remote()
-//   {
-//     auto self(shared_from_this());
-//     remote_socket_.async_read_some(boost::asio::buffer(data_, max_length),
-//                                    [this, self](boost::system::error_code ec, std::size_t length)
-//                                    {
-//                                      if (!ec)
-//                                      {
-//                                        // Forward response back to the client
-//                                        do_write_client(length);
-//                                      } else {
-//                                         std::cerr << "Read error: " << ec.message() << std::endl;
-//                                      }
-//                                    });
-//   }
-
-//   void do_write_client(std::size_t length)
-//   {
-//     auto self(shared_from_this());
-//     boost::asio::async_write(socket_, boost::asio::buffer(data_, length),
-//                              [this, self](boost::system::error_code ec, std::size_t)
-//                              {
-//                                if (!ec)
-//                                {
-//                                  // Continue reading from the client
-//                                  do_read();
-//                                } else {
-//                                   std::cerr << "Write error: " << ec.message() << std::endl;
-//                                }
-//                              });
-//   }
-
-//   tcp::socket socket_;        // Client socket
-//   tcp::socket remote_socket_; // Socket for connecting to the proxy server
-//   tcp::resolver resolver_;    // Resolver for the proxy server
-//   std::string proxy_address_; // Proxy server address
-//   std::string proxy_port_;    // Proxy server port
-//   enum
-//   {
-//     max_length = 1024
-//   };
-//   char data_[max_length];
-// };
-
-// class tcp_server
-// {
-// public:
-//   tcp_server(boost::asio::io_context &io_context, const std::string &proxy_address, const std::string &proxy_port)
-//       : io_context_(io_context), acceptor_(io_context, tcp::endpoint(tcp::v4(), 7890)),
-//         proxy_address_(proxy_address), proxy_port_(proxy_port)
-//   {
-//     start_accept();
-//   }
-
-// private:
-//   void start_accept()
-//   {
-//     tcp_connection::pointer new_connection =
-//         tcp_connection::create(io_context_, proxy_address_, proxy_port_);
-
-//     acceptor_.async_accept(new_connection->socket(),
-//                            [this, new_connection](boost::system::error_code ec)
-//                            {
-//                              if (!ec)
-//                              {
-//                                new_connection->start();
-//                              }
-//                              else
-//                              {
-//                                std::cerr << "Accept error: " << ec.message() << std::endl;
-//                              }
-//                              start_accept();
-//                            });
-//   }
-
-//   boost::asio::io_context &io_context_;
-//   tcp::acceptor acceptor_;
-//   std::string proxy_address_; // Proxy server address
-//   std::string proxy_port_;    // Proxy server port
-// };
-
-// int main()
-// {
-//   try
-//   {
-//     boost::asio::io_context io_context;
-//     tcp_server server(io_context, "192.168.0.90", "8000");
-//     io_context.run();
-//   }
-//   catch (std::exception &e)
-//   {
-//     std::cerr << "Exception: " << e.what() << std::endl;
-//   }
-
-//   return 0;
-// }
+  acceptor_.async_accept(new_connection->socket(),
+                         [this, new_connection](boost::system::error_code ec)
+                         {
+                           if (!ec)
+                           {
+                             //  std::cout << "Accepted new connection" << std::endl;
+                             new_connection->start();
+                           }
+                           else
+                           {
+                             std::cerr << "Error accepting connection: " << ec.message() << std::endl;
+                           }
+                           start_accept();
+                         });
+}
