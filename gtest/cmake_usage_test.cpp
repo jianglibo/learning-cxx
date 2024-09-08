@@ -1,6 +1,5 @@
 #include <gtest/gtest.h> // Add this line
 #include <filesystem>
-#include <thrust/device_vector.h>
 #include <memory>
 
 namespace fs = std::filesystem;

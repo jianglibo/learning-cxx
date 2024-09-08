@@ -16,7 +16,20 @@
       "host": true
     },
     {
-      "name": "boost-asio"
+      "name": "boost-asio",
+      "features": [
+        "ssl"
+      ]
+    },
+    {
+      "name": "libssh2",
+      "features": [
+        "openssl",
+        "zlib"
+      ]
+    },
+    {
+      "name": "zlib"
     }
   ]
 }
