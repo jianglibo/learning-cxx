@@ -1,8 +1,10 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.16)
 
 cmake_policy(SET CMP0104 NEW)
 cmake_policy(SET CMP0146 OLD)
-project(learning-cxx LANGUAGES CXX CUDA)
+# project(learning-cxx LANGUAGES CXX CUDA)
+project(learning-cxx LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
 
 message(STATUS "*****************CMAKE_MAKE_PROGRAM: ${CMAKE_MAKE_PROGRAM}")
 
@@ -72,11 +74,11 @@ if(NOT MSVC)
 
     if(COLORMAKE_EXECUTABLE)
         set(CMAKE_MAKE_PROGRAM ${COLORMAKE_EXECUTABLE})
+        # Enable color output
+        set(CMAKE_COLOR_MAKEFILE ON)
     else()
-        message(FATAL_ERROR "colormake not found!")
+        message(STATUS "colormake not found!")
     endif()
-    # Enable color output
-    set(CMAKE_COLOR_MAKEFILE ON)
 endif()
 
 
@@ -160,7 +162,6 @@ message(STATUS "***********CMAKE_MODULE_PATH*********: ${CMAKE_MODULE_PATH}")
 message(STATUS "***********CMAKE_BUILD_PARALLEL_LEVEL*********: $ENV{CMAKE_BUILD_PARALLEL_LEVEL}")
 
 
-set(CMAKE_CXX_STANDARD 17)
 
 set(learning-cxx_VERSION_MAJOR 0)
 set(learning-cxx_VERSION_MINOR 1)
