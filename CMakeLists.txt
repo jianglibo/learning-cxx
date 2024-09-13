@@ -65,7 +65,7 @@ message(STATUS "*******CMAKE_CURRENT_BINARY_DIR: ${CMAKE_CURRENT_BINARY_DIR}")
 #     message(STATUS "******AddressSanitizer is disabled******")
 # endif()
 
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-relaxed-constexpr")
+# set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-relaxed-constexpr")
 
 # if not msvc
 if(NOT MSVC)
@@ -116,7 +116,7 @@ endif()
 
 # if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
 #   set(CMAKE_CUDA_ARCHITECTURES "75;89")
-  set(CMAKE_CUDA_ARCHITECTURES native)
+#   set(CMAKE_CUDA_ARCHITECTURES native)
 # endif()
 
 # Function to print default include paths
@@ -144,9 +144,9 @@ function(print_default_include_paths)
 endfunction()
 
 # Call the function to print default include paths
-print_default_include_paths()
+# print_default_include_paths()
 
-# set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 
 
 # vcpkg_cmake_configure(
@@ -186,3 +186,4 @@ add_subdirectory(asio-client)
 add_subdirectory(asio-server)
 add_subdirectory(apps)
 add_subdirectory(pam)
+add_subdirectory(workflow-taste)

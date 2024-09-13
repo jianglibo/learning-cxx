@@ -24,3 +24,4 @@ my_profile_report.nsys-rep
 .vs
 fixture_generated/*
 tt.log
+_deps/

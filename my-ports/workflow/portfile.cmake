@@ -1,0 +1,38 @@
+if(VCPKG_TARGET_IS_WINDOWS AND NOT VCPKG_TARGET_IS_MINGW)
+    vcpkg_from_github(
+        OUT_SOURCE_PATH SOURCE_PATH
+        REPO sogou/workflow
+    REF v0.11.5
+    SHA512 bad34de72f572ca0a0c5d8ab04350879b01c4a7b171709224db3b8905923b4bf9a8977753e4ccc0f27a68cce27a65b4d31a783038c9192198751a3a407bf284a
+    REF v0.11.5
+    )
+else()
+    vcpkg_from_github(
+        OUT_SOURCE_PATH SOURCE_PATH
+        REPO sogou/workflow
+    REF v0.11.5
+    SHA512 bad34de72f572ca0a0c5d8ab04350879b01c4a7b171709224db3b8905923b4bf9a8977753e4ccc0f27a68cce27a65b4d31a783038c9192198751a3a407bf284a
+    REF v0.11.5
+    )
+endif()
+
+if(VCPKG_CRT_LINKAGE STREQUAL "static")
+    set(CONFIGURE_OPTIONS "-DWORKFLOW_BUILD_STATIC_RUNTIME=ON")
+else()
+    set(CONFIGURE_OPTIONS "-DWORKFLOW_BUILD_STATIC_RUNTIME=OFF")
+endif()
+
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
+    DISABLE_PARALLEL_CONFIGURE
+    OPTIONS ${CONFIGURE_OPTIONS}
+)
+vcpkg_cmake_install()
+vcpkg_cmake_config_fixup(CONFIG_PATH "lib/cmake/${PORT}")
+vcpkg_copy_pdbs()
+
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/share")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/share/doc")
+
+file(INSTALL "${SOURCE_PATH}/LICENSE" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}" RENAME copyright)
