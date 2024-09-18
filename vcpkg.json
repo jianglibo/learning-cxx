@@ -22,6 +22,9 @@
       ]
     },
     {
+      "name": "boost-beast"
+    },
+    {
       "name": "libssh2",
       "features": [
         "openssl",

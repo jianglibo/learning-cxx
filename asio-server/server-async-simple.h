@@ -2,9 +2,11 @@
 
 #ifndef SERVER_ASYNC_H
 #define SERVER_ASYNC_H
+
 #include <iostream>
 #include <boost/asio.hpp>
 #include <boost/bind/bind.hpp>
+#include <optional>
 
 using boost::asio::ip::tcp;
 
@@ -102,8 +104,6 @@ private:
   tcp::socket socket_;
   tcp::socket remote_socket_;
   tcp::resolver resolver_;
-  // std::string proxy_address_;
-  // std::string proxy_port_;
   std::string request_buffer_;
   bool debug_mode;
   HeaderState header_state_;
@@ -120,26 +120,57 @@ private:
 class tcp_server
 {
 public:
-  tcp_server(boost::asio::io_context &io_context,
-             const std::string &proxy_address,
-             const std::string &proxy_port,
-             bool debug_mode = false)
-      : io_context_(io_context),
-        acceptor_(io_context, tcp::endpoint(tcp::v4(), 7890)),
-        proxy_address_(proxy_address),
-        proxy_port_(proxy_port),
-        debug_mode(debug_mode)
+  // static make server
+  inline static tcp_server make_server(boost::asio::io_context &io_context,
+                                       const std::string &proxy_address,
+                                       const std::string &proxy_port,
+                                       const int port,
+                                       const std::string &host = "",
+                                       bool debug_mode = false)
   {
-    proxy_endpoints_ = tcp::resolver(io_context).resolve(proxy_address_, proxy_port_);
-    start_accept();
+    if (host.empty())
+    {
+      return tcp_server(io_context, proxy_address, proxy_port, tcp::endpoint(tcp::v4(), port), debug_mode);
+    }
+    else
+    {
+      boost::asio::ip::address addr;
+      try
+      {
+        addr = boost::asio::ip::make_address(host);
+      }
+      catch (const std::exception &e)
+      {
+        auto endpoints = tcp::resolver(io_context).resolve(host, "0");
+        tcp::endpoint endpoint = *endpoints.begin();
+        addr = endpoint.address();
+      }
+      return tcp_server(io_context, proxy_address, proxy_port, tcp::endpoint(addr, port), debug_mode);
+    }
   }
 
 private:
+  tcp_server(boost::asio::io_context &io_context,
+             const std::string &proxy_address,
+             const std::string &proxy_port,
+             const tcp::endpoint &endpoint,
+             bool debug_mode = false)
+      : io_context_(io_context),
+        acceptor_(io_context, endpoint),
+        proxy_address_(proxy_address),
+        proxy_port_(proxy_port),
+        resolver_(io_context),
+        debug_mode(debug_mode)
+  {
+    proxy_endpoints_ = resolver_.resolve(proxy_address_, proxy_port_);
+    start_accept();
+  }
   void start_accept();
   boost::asio::io_context &io_context_;
   tcp::acceptor acceptor_;
   std::string proxy_address_;
   std::string proxy_port_;
+  tcp::resolver resolver_;
   tcp::resolver::results_type proxy_endpoints_;
   bool debug_mode;
 };

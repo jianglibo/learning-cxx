@@ -1,4 +1,4 @@
-#include "server-async.h"
+#include "server-async-simple.h"
 
 // tcp::socket &socket() { return socket_; }
 
@@ -98,7 +98,6 @@ void tcp_connection::do_read_client()
                                   request_buffer_ = parse_http_request(request_buffer_);
                                   // Clear the buffer and continue processing the request
                                   // request_buffer_.clear();
-
                                   // if modified_request.size() > max_length, we need to send it in chunks
                                   // std::size_t total_length = modified_request.size();
                                   // Loop to send the request in chunks if it's larger than max_length
@@ -223,7 +222,6 @@ void tcp_server::start_accept()
 {
   // auto new_connection = tcp_connection::create(io_context_, proxy_address_, proxy_port_, debug_mode);
   auto new_connection = tcp_connection::create(io_context_, proxy_endpoints_, debug_mode);
-
   acceptor_.async_accept(new_connection->socket(),
                          [this, new_connection](boost::system::error_code ec)
                          {
@@ -231,11 +229,11 @@ void tcp_server::start_accept()
                            {
                              //  std::cout << "Accepted new connection" << std::endl;
                              new_connection->start();
+                             start_accept();
                            }
                            else
                            {
                              std::cerr << "Error accepting connection: " << ec.message() << std::endl;
                            }
-                           start_accept();
                          });
 }
