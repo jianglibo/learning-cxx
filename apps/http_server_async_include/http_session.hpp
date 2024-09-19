@@ -97,37 +97,10 @@ namespace server_async
             }
             else if (parser_->get().method() == http::verb::connect)
             {
-                tcp::socket &raw_socket = derived().socket();
-                std::string response = "HTTP/1.1 200 OK\r\nServer: MyServer/1.0\r\nContent-Type: text/plain\r\nContent-Length: 0\r\nConnection: keep-alive\r\n\r\n";
-
-                boost::asio::async_write(raw_socket, boost::asio::buffer(response),
-                                         [this](boost::system::error_code ec, std::size_t)
-                                         {
-                                             if (!ec)
-                                             {
-                                                 //  do_read_client();
-                                             }
-                                             else
-                                             {
-                                                 std::cerr << "Error writing to proxy server: " << ec.message() << std::endl;
-                                             }
-                                         });
-                // http::response<http::empty_body> res{http::status::ok, parser_->get().version()};
-                // res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-                // res.keep_alive(true);
-
-                // http::message_generator res_gen{std::move(res)};
-                // beast::async_write(
-                //     derived().stream(),
-                //     res_gen,
-                //     beast::bind_front_handler(
-                //         &http_session::on_write,
-                //         derived().shared_from_this(),
-                //         true));
-                return;
-                // return make_connection_session(
-                //     derived().release_stream(),
-                //     parser_->release());
+                // tcp::socket &raw_socket = derived().socket();
+                // std::cout << "got target: " << parser_->get().target() << std::endl;
+                // assert(parser_->get().target().starts_with("http"));
+                return socket_copier::create(std::move(derived().socket()), parser_->get().target())->start();
             }
 
             // Send the response
@@ -194,6 +167,7 @@ namespace server_async
 
             do_write();
         }
+        // virtual boost::asio::io_context &get_io_context() = 0;
     };
 
     //------------------------------------------------------------------------------
@@ -235,6 +209,13 @@ namespace server_async
         {
             return stream_.socket();
         }
+
+        // boost::asio::io_context &get_io_context()
+        // {
+        //     // return boost::asio::use_service<boost::asio::io_context>(stream_.get_executor().context());
+        //     tcp::resolver resolver_{stream_.get_executor().context()};
+        //     return socket().get_executor().context();
+        // }
 
         // Called by the base class
         beast::tcp_stream
@@ -307,6 +288,11 @@ namespace server_async
         {
             return stream_.lowest_layer();
         }
+        // boost::asio::io_context &get_io_context()
+        // {
+        //     // return boost::asio::use_service<boost::asio::io_context>(stream_.get_executor().context());
+        //     return stream_.get_executor().context();
+        // }
 
         // Called by the base class
         ssl::stream<beast::tcp_stream>

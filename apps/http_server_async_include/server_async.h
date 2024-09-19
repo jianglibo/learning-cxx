@@ -188,6 +188,7 @@ namespace server_async
         unsigned short const port;
         net::ip::address address;
         int threads;
+        boost::asio::executor_work_guard<boost::asio::io_context::executor_type> work_guard;
 
     public:
         HttpServer(net::ip::address address,
@@ -198,7 +199,8 @@ namespace server_async
                                   port(port),
                                   threads(threads),
                                   ioc{threads},
-                                  ctx{ssl::context::tlsv12}
+                                  ctx{ssl::context::tlsv12},
+                                  work_guard(boost::asio::make_work_guard(ioc))
         {
         }
         void start()

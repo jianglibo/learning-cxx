@@ -3,10 +3,12 @@ project(DEMO-PROXY-SERVER CXX)
 set(APP_NAME proxy-server)
 find_package(Boost REQUIRED COMPONENTS asio)
 find_package(Boost REQUIRED COMPONENTS beast)
+find_package(Boost REQUIRED COMPONENTS url)
 # Find OpenSSL libraries
 find_package(OpenSSL REQUIRED)
 find_package(Libssh2 CONFIG REQUIRED)
 find_package(ZLIB REQUIRED)
+
 
 add_executable(${APP_NAME} proxy-server.cpp ../asio-server/server-async-simple.cpp)
 include_directories(${APP_NAME} ${CMAKE_SOURCE_DIR}/asio-server)
@@ -24,6 +26,7 @@ target_include_directories(${BOOST_SERVER}
 target_link_libraries(${BOOST_SERVER} 
     PRIVATE Boost::asio
     PRIVATE Boost::beast
+    PRIVATE Boost::url
     PRIVATE  ZLIB::ZLIB 
     PRIVATE OpenSSL::SSL 
     PRIVATE  OpenSSL::Crypto 

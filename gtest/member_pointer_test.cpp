@@ -102,18 +102,18 @@ TEST(MemberPointerTest, nested)
 
 #define TO_QUOTE(x) #x
 
-#define VARIADIC_MACRO(...)                         \
-	template <typename... Args>                     \
-	void _apply_tf(Args... args)                    \
-	{                                               \
-		int index = 0;                              \
-		(void)std::initializer_list<int>{           \
+#define VARIADIC_MACRO(...)                              \
+	template <typename... Args>                          \
+	void _apply_tf(Args... args)                         \
+	{                                                    \
+		int index = 0;                                   \
+		(void)std::initializer_list<int>{                \
 			(printf("%s\n", "" + args), index++, 0)...}; \
-	}                                               \
-	void apply_tf()                                 \
-	{                                               \
-		std::cout << #__VA_ARGS__ << std::endl;     \
-		_apply_tf(__VA_ARGS__);                     \
+	}                                                    \
+	void apply_tf()                                      \
+	{                                                    \
+		std::cout << #__VA_ARGS__ << std::endl;          \
+		_apply_tf(__VA_ARGS__);                          \
 	}
 
 struct ___Ts
@@ -131,4 +131,38 @@ TEST(MemberPointerTest, variadicMacro)
 	ts.b = 2;
 
 	ts.apply_tf();
+}
+
+struct __m
+{
+	int a = 0;
+	int b = 0;
+	int c = 0;
+	__m(int a, int b) : b(b), c(b + 1), a(c + 1) {}
+	// if the order is by init list: b = 2, c = 3, a = 4
+	// if the order is by declare: a = 1, b = 2, c = 3
+};
+
+TEST(MemberInitializeTest, OrderMatters)
+{
+	__m m1(1, 2);
+	ASSERT_NE(m1.a, 3);
+	ASSERT_EQ(m1.b, 2);
+	ASSERT_EQ(m1.c, 3);
+}
+
+static void __f1(int &&a)
+{
+	std::cout << a + 1<< std::endl;
+}
+
+TEST(MemberInitializeTest, LR)
+{
+	__f1(std::move(*(new int(10))));
+	__f1(int{1});
+	__f1(5);
+	// int{1} = 5;
+	*(new int(1)) = 5;
+	__f1(std::move(*(new int[5])));
+
 }
