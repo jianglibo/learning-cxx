@@ -1,7 +1,7 @@
 #pragma once
 
-#ifndef SOCKET_COPY_H
-#define SOCKET_COPY_H
+#ifndef HTTP_COPY_H
+#define HTTP_COPY_H
 
 #include <iostream>
 #include <boost/asio.hpp>
@@ -11,18 +11,18 @@
 
 using boost::asio::ip::tcp;
 
-class socket_copier : public std::enable_shared_from_this<socket_copier>
+class http_copier : public std::enable_shared_from_this<http_copier>
 {
 public:
-  using pointer = std::shared_ptr<socket_copier>;
+  using pointer = std::shared_ptr<http_copier>;
   static pointer create(
       tcp::socket &&socket_,
-      beast::flat_buffer &&buffer_,
-      const std::string &target_endpoints)
+      http::request<http::empty_body> &&req_,
+      beast::flat_buffer &&buffer_)
   {
-    return pointer(new socket_copier(std::forward<tcp::socket>(socket_),
-                                     std::forward<beast::flat_buffer>(buffer_),
-                                     target_endpoints));
+    return pointer(new http_copier(std::forward<tcp::socket>(socket_),
+                                   std::forward<http::request<http::empty_body>>(req_),
+                                   std::forward<beast::flat_buffer>(buffer_)));
   }
 
   void do_relay(tcp::socket &source, tcp::socket &dest, std::shared_ptr<std::array<char, 4096>> &buffer)
@@ -91,46 +91,72 @@ public:
           }
         });
   }
-
-  void write200ok(const std::string &response)
+  // http::request<http::empty_body> req = parser_->release();
+  // http::request_serializer<http::empty_body> sr{req};
+  void send_parsed_request()
   {
-    boost::asio::async_write(socket_, boost::asio::buffer(response),
-                             [self = shared_from_this()](boost::system::error_code ec, std::size_t)
-                             {
-                               if (!ec)
-                               {
-                                 self->write_unconsumed();
-                               }
-                               else
-                               {
-                                 std::cerr << "Error writing to proxy server: " << ec.message() << std::endl;
-                               }
-                             });
+    req_.erase(http::field::proxy_connection);
+    std::ostringstream oss;
+    beast::error_code ec;
+    server_async::write_ostream(oss, req_, ec);
+    http::request_serializer<http::empty_body> sr{req_};
+    sr.split(true);
+
+    std::cout << "request: " << req_ << std::endl;
+    // http::async_write(socket_, net::buffer(oss.str()),
+    http::async_write(remote_socket_, req_,
+                      [self = shared_from_this()](boost::system::error_code ec, std::size_t)
+                      {
+                        if (!ec)
+                        {
+                          std::cout << "write request done." << std::endl;
+                          self->write_unconsumed();
+                        }
+                        else
+                        {
+                          std::cerr << "Error writing to proxy server: " << ec.message() << std::endl;
+                        }
+                      });
   }
 
   void start()
   {
-    // boost::urls::url_view url{target_endpoints_};
+    boost::urls::url_view url{req_.target()};
     // tcp::resolver resolver_(socket_.get_executor());
-    auto delimiter_pos = target_endpoints_.find(':');
+    // auto delimiter_pos = target_endpoints_.find(':');
 
-    const std::string &host = target_endpoints_.substr(0, delimiter_pos);
-    const std::string &port = target_endpoints_.substr(delimiter_pos + 1);
+    std::string host = url.host();
+    std::string port = url.port().empty() ? "80" : url.port();
 
-    std::cout << "target_endpoints_:" << target_endpoints_ << ", start resolve: " << host << ", port: " << port << std::endl;
-    tcp::resolver::results_type target_endpoints_resolved_ = resolver_.resolve(host, port);
-    std::cout << "result: " << target_endpoints_resolved_.begin()->endpoint() << std::endl;
+    req_.set(http::field::host, host);
+    // req_.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
+
+    // req_.target(path); // Set the target path
+    // Optionally, you can handle the query if needed
+    if (!url.query().empty())
+    {
+      req_.target(url.path() + "?" + url.query()); // Append query if present
+    }
+    else
+    {
+      req_.target(url.path());
+    }
+
+    std::cout << "start resolve: " << host << ", port: " << port << "version: " << req_.version() << std::endl;
+    // tcp::resolver::results_type target_endpoints_resolved_ = resolver_.resolve(host, port);
+    // std::cout << "result: " << target_endpoints_resolved_.begin()->endpoint() << std::endl;
     resolver_.async_resolve(host, port,
                             [self = shared_from_this()](boost::system::error_code ec, tcp::resolver::results_type results)
                             {
                               if (!ec)
                               {
+                                std::cout << "result: " << results.begin()->endpoint() << std::endl;
                                 boost::asio::async_connect(self->remote_socket_, results,
                                                            [self](boost::system::error_code ec, const tcp::endpoint &)
                                                            {
                                                              if (!ec)
                                                              {
-                                                               self->write200ok("HTTP/1.1 200 OK\r\nConnection: keep-alive\r\n\r\n");
+                                                               self->send_parsed_request();
                                                              }
                                                              else
                                                              {
@@ -149,16 +175,18 @@ public:
 
 protected:
   beast::flat_buffer buffer_;
+  http::request<http::empty_body> req_;
 
 private:
-  socket_copier(
+  http_copier(
       tcp::socket &&socket_,
-      beast::flat_buffer &&buffer_,
-      const std::string &target_endpoints)
+      http::request<http::empty_body> &&req_,
+      beast::flat_buffer &&buffer_)
       : socket_(std::move(socket_)),
+        req_(req_),
+        buffer_(buffer_),
         remote_socket_(socket_.get_executor()),
         resolver_(socket_.get_executor()),
-        target_endpoints_(target_endpoints),
         client_to_server_buffer(std::make_shared<std::array<char, max_length>>()),
         server_to_client_buffer(std::make_shared<std::array<char, max_length>>())
   {
@@ -181,7 +209,6 @@ private:
   tcp::socket socket_;
   tcp::socket remote_socket_;
   tcp::resolver resolver_; // need keep live for who async operations.
-  const std::string &target_endpoints_;
   enum
   {
     max_length = 4096

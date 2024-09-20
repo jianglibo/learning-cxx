@@ -5,6 +5,7 @@
 #include "socket_session.hpp"
 #include "connection_session.hpp"
 #include "socket_copier.h"
+#include "http_copier.h"
 
 namespace server_async
 {
@@ -31,7 +32,7 @@ namespace server_async
 
         // The parser is stored in an optional container so we can
         // construct it from scratch it at the beginning of each new message.
-        boost::optional<http::request_parser<http::string_body>> parser_;
+        boost::optional<http::request_parser<http::empty_body>> parser_;
 
     protected:
         beast::flat_buffer buffer_;
@@ -53,7 +54,7 @@ namespace server_async
 
             // Apply a reasonable limit to the allowed size
             // of the body in bytes to prevent abuse.
-            parser_->body_limit(10000);
+            // parser_->body_limit(10000);
 
             // Set the timeout.
             beast::get_lowest_layer(
@@ -61,7 +62,14 @@ namespace server_async
                 .expires_after(std::chrono::seconds(30));
 
             // Read a request using the parser-oriented interface
-            http::async_read(
+            // http::async_read(
+            //     derived().stream(),
+            //     buffer_,
+            //     *parser_,
+            //     beast::bind_front_handler(
+            //         &http_session::on_read,
+            //         derived().shared_from_this()));
+            http::async_read_header(
                 derived().stream(),
                 buffer_,
                 *parser_,
@@ -100,7 +108,19 @@ namespace server_async
                 // tcp::socket &raw_socket = derived().socket();
                 // std::cout << "got target: " << parser_->get().target() << std::endl;
                 // assert(parser_->get().target().starts_with("http"));
-                return socket_copier::create(std::move(derived().socket()), parser_->get().target())->start();
+                return socket_copier::create(std::move(derived().socket()),
+                                             std::move(buffer_),
+                                             parser_->get().target())
+                    ->start();
+            }
+            else if (parser_->get().target().starts_with("http"))
+            {
+                std::cout << "got absolute target: " << parser_->get().target() << std::endl;
+                // we need send the serialized req first then the unconsumed buffer.
+                return http_copier::create(std::move(derived().socket()),
+                                           parser_->release(),
+                                           std::move(buffer_))
+                    ->start();
             }
 
             // Send the response

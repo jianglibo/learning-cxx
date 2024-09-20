@@ -203,11 +203,13 @@ namespace server_async
                                   work_guard(boost::asio::make_work_guard(ioc))
         {
         }
-        void start()
+        void start(std::string const &cert,
+                   std::string const &key,
+                   std::string const &dh)
         {
 
             // This holds the self-signed certificate used by the server
-            load_server_certificate(ctx);
+            load_server_certificate(ctx, cert, key, dh);
 
             // Create and launch a listening port
             std::make_shared<server_async::listener>(

@@ -1,43 +1,6 @@
 #include "server_async.h"
-
-void relay_data(tcp::socket &client_socket, tcp::socket &server_socket, net::strand<net::io_context::executor_type> &strand)
-{
-    auto buffer = std::make_shared<std::array<char, 4096>>();
-
-    auto relay = [&client_socket, &server_socket, buffer, &strand](tcp::socket &source, tcp::socket &dest)
-    {
-        // Asynchronous read from the source socket
-        source.async_read_some(
-            net::buffer(*buffer),
-            net::bind_executor(
-                strand, // Ensure this operation is serialized in the strand
-                [&dest, buffer](boost::system::error_code ec, std::size_t bytes_transferred)
-                {
-                    if (!ec)
-                    {
-                        // Asynchronously write the data to the destination socket
-                        net::async_write(
-                            dest,
-                            net::buffer(buffer->data(), bytes_transferred),
-                            [&dest](boost::system::error_code ec, std::size_t /*length*/)
-                            {
-                                if (ec)
-                                {
-                                    dest.close(); // Close the destination socket on error
-                                }
-                            });
-                    }
-                    else
-                    {
-                        dest.close(); // Close the destination socket on error
-                    }
-                }));
-    };
-
-    // Start relaying data in both directions
-    relay(client_socket, server_socket); // Client to Server
-    relay(server_socket, client_socket); // Server to Client
-}
+#include <fstream>
+#include <iostream>
 
 int main(int argc, char *argv[])
 {
@@ -54,6 +17,13 @@ int main(int argc, char *argv[])
     auto const doc_root = std::make_shared<std::string>(argv[3]);
     auto const threads = std::max<int>(1, std::atoi(argv[4]));
     server_async::HttpServer server(address, port, doc_root, threads);
-    server.start();
+
+    const char *cert_filepath = "apps/fixtures/cert.pem";
+    const char *key_filepath = "apps/fixtures/key.pem";
+    const char *dh_filepath = "apps/fixtures/dh.pem";
+    server.start(server_async::read_whole_file(cert_filepath),
+                 server_async::read_whole_file(key_filepath),
+                 server_async::read_whole_file(dh_filepath));
+
     return EXIT_SUCCESS;
 }
