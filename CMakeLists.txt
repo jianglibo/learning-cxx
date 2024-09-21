@@ -57,6 +57,10 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 message(STATUS "*******GIT_DESCRIBE: ${GIT_DESCRIBE}")
 message(STATUS "*******CMAKE_CURRENT_BINARY_DIR: ${CMAKE_CURRENT_BINARY_DIR}")
 
+# set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address -fno-omit-frame-pointer")
+# set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} -fsanitize=address")
+
+
 
 # message(STATUS "*****ENABLE_ASAN: ${ENABLE_ASAN}******")
 # if(ENABLE_ASAN)

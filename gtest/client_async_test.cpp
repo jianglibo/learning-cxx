@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include "http_client_async.hpp"
 #include "server_async_util.h"
+#include <boost/url.hpp>
 
 TEST(BoostBeastClientTest, HTTP_BLOCK)
 {
@@ -134,4 +135,22 @@ TEST(BufferTest, FlatBuffer)
 
     // After consuming the data, the buffer should be empty
     std::cout << "Buffer size after consuming: " << buffer.size() << std::endl;
+}
+
+TEST(UrlTest, UrlNoScheme)
+{
+    std::string url = "//www.example.com";
+    boost::urls::url_view url_view{url};
+
+    ASSERT_FALSE(url_view.has_scheme());
+
+    boost::system::result<boost::urls::url> ru = boost::urls::parse_uri_reference(url);
+    if(ru.has_error()){
+        std::cerr << "Error: " << ru.error().message() << std::endl;
+    }
+
+    ASSERT_STREQ(ru.value().host().data(), "www.example.com");
+
+    ASSERT_STREQ(url_view.host().data(), "www.example.com");
+    ASSERT_STREQ(url_view.port().data(), "");
 }

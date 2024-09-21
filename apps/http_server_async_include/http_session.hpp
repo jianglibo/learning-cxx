@@ -9,6 +9,8 @@
 
 namespace server_async
 {
+    class plain_http_session;
+    class ssl_http_session;
     //------------------------------------------------------------------------------
 
     // Handles an HTTP server connection.
@@ -108,19 +110,62 @@ namespace server_async
                 // tcp::socket &raw_socket = derived().socket();
                 // std::cout << "got target: " << parser_->get().target() << std::endl;
                 // assert(parser_->get().target().starts_with("http"));
-                return socket_copier::create(std::move(derived().socket()),
-                                             std::move(buffer_),
-                                             parser_->get().target())
-                    ->start();
+                // return socket_copier::create(std::move(derived().socket()),
+                //                              std::move(buffer_),
+                //                              parser_->get().target())
+                //     ->start();
+                if constexpr (std::is_same_v<Derived, plain_http_session>)
+                {
+                    std::cout << "Handling plain HTTP session.\n";
+                    auto st = derived().release_stream();
+                    std::shared_ptr<plain_socket_copy> copier =
+                        std::make_shared<plain_socket_copy>(std::move(st), std::move(buffer_), parser_->release());
+
+                    return copier->start();
+                }
+                else if constexpr (std::is_same_v<Derived, ssl_http_session>)
+                {
+                    auto st = derived().release_stream();
+                    std::shared_ptr<ssl_socket_copy> copier =
+                        std::make_shared<ssl_socket_copy>(std::move(st), std::move(buffer_), parser_->release());
+                    return copier->start();
+                }
+                else
+                {
+                    std::cout << "Unknown HTTP session type.\n";
+                    return;
+                }
             }
             else if (parser_->get().target().starts_with("http"))
             {
                 std::cout << "got absolute target: " << parser_->get().target() << std::endl;
+                // start_http_copy(parser_->release());
                 // we need send the serialized req first then the unconsumed buffer.
-                return http_copier::create(std::move(derived().socket()),
-                                           parser_->release(),
-                                           std::move(buffer_))
-                    ->start();
+                if constexpr (std::is_same_v<Derived, plain_http_session>)
+                {
+                    std::cout << "Handling plain HTTP session.\n";
+                    auto st = derived().release_stream();
+                    std::shared_ptr<plain_http_copy> copier =
+                        std::make_shared<plain_http_copy>(std::move(st), parser_->release(), std::move(buffer_));
+
+                    return copier->start();
+                }
+                else if constexpr (std::is_same_v<Derived, ssl_http_session>)
+                {
+                    auto st = derived().release_stream();
+                    std::shared_ptr<ssl_http_copy> copier =
+                        std::make_shared<ssl_http_copy>(std::move(st), parser_->release(), std::move(buffer_));
+                    return copier->start();
+                }
+                else
+                {
+                    std::cout << "Unknown HTTP session type.\n";
+                    return;
+                }
+                // return http_copier<decltype(derived().stream())>::create(st,
+                //                                                          parser_->release(),
+                //                                                          std::move(buffer_))
+                //     ->start();
             }
 
             // Send the response
