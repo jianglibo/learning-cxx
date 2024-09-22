@@ -1,7 +1,8 @@
 #include <gtest/gtest.h>
 #include "http_client_async.hpp"
-#include "server_async_util.h"
+#include "server_async.h"
 #include <boost/url.hpp>
+#include <filesystem>
 
 TEST(BoostBeastClientTest, HTTP_BLOCK)
 {
@@ -145,7 +146,8 @@ TEST(UrlTest, UrlNoScheme)
     ASSERT_FALSE(url_view.has_scheme());
 
     boost::system::result<boost::urls::url> ru = boost::urls::parse_uri_reference(url);
-    if(ru.has_error()){
+    if (ru.has_error())
+    {
         std::cerr << "Error: " << ru.error().message() << std::endl;
     }
 
@@ -153,4 +155,41 @@ TEST(UrlTest, UrlNoScheme)
 
     ASSERT_STREQ(url_view.host().data(), "www.example.com");
     ASSERT_STREQ(url_view.port().data(), "");
+}
+
+TEST(ServerTest, start)
+{
+    net::ip::address address = net::ip::make_address("0.0.0.0");                            // net::ip::make_address(argv[1]);
+    unsigned short port{8080};                                                              // static_cast<unsigned short>(std::atoi(argv[2]));
+    std::shared_ptr<std::string const> const doc_root = std::make_shared<std::string>("."); // std::make_shared<std::string>(argv[3]);
+    auto const threads = 1;                                                                 // std::max<int>(1, std::atoi(argv[4]));
+    server_async::HttpServer server(address, port, doc_root, threads);
+
+    std::filesystem::path cwd = std::filesystem::current_path();
+    std::cout << "Current working directory: " << cwd << std::endl;
+
+    const char *cert_filepath = "../../apps/fixtures/cert.pem";
+    const char *key_filepath = "../../apps/fixtures/key.pem";
+    const char *dh_filepath = "../../apps/fixtures/dh.pem";
+
+    // print out current directory absolutely
+
+    server_async::SSLCertHolder ssl_cert_holder{server_async::read_whole_file(cert_filepath),
+                                                server_async::read_whole_file(key_filepath),
+                                                server_async::read_whole_file(dh_filepath)};
+
+    server_async::HandlerCommon handler_common = [&doc_root](server_async::EmptyBodyRequest ebr)
+    {
+        http::response<http::string_body> res{http::status::ok, ebr.version()};
+        res.keep_alive(ebr.keep_alive());
+
+        return std::make_shared<server_async::FileRequestHandler>(*doc_root, std::move(ebr))->handle_request();
+    };
+
+    std::thread t([&server, &ssl_cert_holder, &handler_common]()
+                  { server.start(ssl_cert_holder, handler_common); });
+
+    std::this_thread::sleep_for(std::chrono::seconds(3));
+    server.stop();
+    t.join();
 }

@@ -5,6 +5,7 @@
 
 #include "server_async_util.h"
 #include "http_session.hpp"
+#include "http_handler_util.hpp"
 
 namespace server_async
 {
@@ -18,13 +19,17 @@ namespace server_async
         ssl::context &ctx_;
         std::shared_ptr<std::string const> doc_root_;
         beast::flat_buffer buffer_;
+        HandlerFunc<plain_http_session> &plain_handle_func;
+        HandlerFunc<ssl_http_session> &ssl_handle_func;
 
     public:
         explicit detect_session(
             tcp::socket &&socket,
             ssl::context &ctx,
-            std::shared_ptr<std::string const> const &doc_root)
-            : stream_(std::move(socket)), ctx_(ctx), doc_root_(doc_root)
+            std::shared_ptr<std::string const> const &doc_root,
+            HandlerFunc<plain_http_session> &plain_handle_func,
+            HandlerFunc<ssl_http_session> &ssl_handle_func)
+            : stream_(std::move(socket)), ctx_(ctx), doc_root_(doc_root), plain_handle_func(plain_handle_func), ssl_handle_func(ssl_handle_func)
         {
         }
 
@@ -70,7 +75,7 @@ namespace server_async
                     std::move(stream_),
                     ctx_,
                     std::move(buffer_),
-                    doc_root_)
+                    ssl_handle_func)
                     ->run();
                 return;
             }
@@ -79,7 +84,7 @@ namespace server_async
             std::make_shared<plain_http_session>(
                 std::move(stream_),
                 std::move(buffer_),
-                doc_root_)
+                plain_handle_func)
                 ->run();
         }
     };
@@ -91,14 +96,18 @@ namespace server_async
         ssl::context &ctx_;
         tcp::acceptor acceptor_;
         std::shared_ptr<std::string const> doc_root_;
+        HandlerFunc<plain_http_session> &plain_handle_func;
+        HandlerFunc<ssl_http_session> &ssl_handle_func;
 
     public:
         listener(
             net::io_context &ioc,
             ssl::context &ctx,
             tcp::endpoint endpoint,
-            std::shared_ptr<std::string const> const &doc_root)
-            : ioc_(ioc), ctx_(ctx), acceptor_(net::make_strand(ioc)), doc_root_(doc_root)
+            std::shared_ptr<std::string const> const &doc_root,
+            HandlerFunc<plain_http_session> &plain_handle_func,
+            HandlerFunc<ssl_http_session> &ssl_handle_func)
+            : ioc_(ioc), ctx_(ctx), acceptor_(net::make_strand(ioc)), doc_root_(doc_root), plain_handle_func(plain_handle_func), ssl_handle_func(ssl_handle_func)
         {
             beast::error_code ec;
 
@@ -168,7 +177,9 @@ namespace server_async
                 std::make_shared<detect_session>(
                     std::move(socket),
                     ctx_,
-                    doc_root_)
+                    doc_root_,
+                    plain_handle_func,
+                    ssl_handle_func)
                     ->run();
             }
 
@@ -188,6 +199,7 @@ namespace server_async
         unsigned short const port;
         net::ip::address address;
         int threads;
+        std::vector<std::thread> v;
         boost::asio::executor_work_guard<boost::asio::io_context::executor_type> work_guard;
 
     public:
@@ -203,20 +215,39 @@ namespace server_async
                                   work_guard(boost::asio::make_work_guard(ioc))
         {
         }
-        void start(std::string const &cert,
-                   std::string const &key,
-                   std::string const &dh)
+
+        void start(SSLCertHolder ssl_cert_holder,
+                   std::function<http::message_generator(EmptyBodyRequest)> &handler_common)
         {
 
+            HandlerFunc<plain_http_session> plain_handler = [&handler_common](std::shared_ptr<plain_http_session> http_session,
+                                                                              EmptyBodyRequest ebr)
+            {
+                return handler_common(ebr);
+            };
+            HandlerFunc<ssl_http_session> ssl_handler = [&handler_common](std::shared_ptr<ssl_http_session> http_session,
+                                                                          EmptyBodyRequest ebr)
+            {
+                return handler_common(ebr);
+            };
+            start(ssl_cert_holder, plain_handler, ssl_handler);
+        }
+        void start(SSLCertHolder ssl_cert_holder,
+                   HandlerFunc<plain_http_session> &plain_handler,
+                   HandlerFunc<ssl_http_session> &ssl_handler)
+        {
+            // HandlerFunc<plain_http_session> plain_handler_func = plain_handler;
             // This holds the self-signed certificate used by the server
-            load_server_certificate(ctx, cert, key, dh);
+            load_server_certificate(ctx, ssl_cert_holder.cert, ssl_cert_holder.key, ssl_cert_holder.dh);
 
             // Create and launch a listening port
-            std::make_shared<server_async::listener>(
+            std::make_shared<listener>(
                 ioc,
                 ctx,
                 tcp::endpoint{address, port},
-                doc_root)
+                doc_root,
+                plain_handler,
+                ssl_handler)
                 ->run();
 
             // Capture SIGINT and SIGTERM to perform a clean shutdown
@@ -231,7 +262,6 @@ namespace server_async
                 });
 
             // Run the I/O service on the requested number of threads
-            std::vector<std::thread> v;
             v.reserve(threads - 1);
             for (auto i = threads - 1; i > 0; --i)
                 v.emplace_back(
@@ -246,6 +276,15 @@ namespace server_async
             // Block until all the threads exit
             for (auto &t : v)
                 t.join();
+        }
+
+        void stop()
+        {
+            ioc.stop();
+            for (auto &thread : v) // Assuming you have a vector of threads
+            {
+                thread.join(); // Wait for each thread to finish
+            }
         }
     };
 }

@@ -6,6 +6,8 @@
 #include "connection_session.hpp"
 #include "socket_copier.h"
 #include "http_copier.h"
+#include "http_handler.hpp"
+#include "http_handler_util.hpp"
 
 namespace server_async
 {
@@ -20,6 +22,7 @@ namespace server_async
     class http_session
     {
         std::shared_ptr<std::string const> doc_root_;
+        HandlerFunc<Derived> &handle_func;
 
         // Access the derived class, this is part of
         // the Curiously Recurring Template Pattern idiom.
@@ -43,8 +46,10 @@ namespace server_async
         // Construct the session
         http_session(
             beast::flat_buffer buffer,
-            std::shared_ptr<std::string const> const &doc_root)
-            : doc_root_(doc_root), buffer_(std::move(buffer))
+            HandlerFunc<Derived> &handle_func)
+            // std::shared_ptr<std::string const> const &doc_root
+            // )
+            : handle_func(handle_func), buffer_(std::move(buffer))
         {
         }
 
@@ -162,14 +167,13 @@ namespace server_async
                     std::cout << "Unknown HTTP session type.\n";
                     return;
                 }
-                // return http_copier<decltype(derived().stream())>::create(st,
-                //                                                          parser_->release(),
-                //                                                          std::move(buffer_))
-                //     ->start();
             }
 
             // Send the response
-            queue_write(handle_request(*doc_root_, parser_->release()));
+            // queue_write(handle_request(*doc_root_, parser_->release()));
+            assert(handle_func);
+            queue_write(handle_func(derived().shared_from_this(), parser_->release()));
+            // queue_write(std::make_shared<FileRequestHandler>(*doc_root_, parser_->release())->handle_request());
 
             // If we aren't at the queue limit, try to pipeline another request
             if (response_queue_.size() < queue_limit)
@@ -248,10 +252,9 @@ namespace server_async
         plain_http_session(
             beast::tcp_stream &&stream,
             beast::flat_buffer &&buffer,
-            std::shared_ptr<std::string const> const &doc_root)
+            HandlerFunc<plain_http_session> &handle_func)
             : http_session<plain_http_session>(
-                  std::move(buffer),
-                  doc_root),
+                  std::move(buffer), handle_func),
               stream_(std::move(stream))
         {
         }
@@ -316,10 +319,14 @@ namespace server_async
             beast::tcp_stream &&stream,
             ssl::context &ctx,
             beast::flat_buffer &&buffer,
-            std::shared_ptr<std::string const> const &doc_root)
+            HandlerFunc<ssl_http_session> &handle_func)
+            // std::shared_ptr<std::string const> const &doc_root
+            // )
             : http_session<ssl_http_session>(
                   std::move(buffer),
-                  doc_root),
+                  handle_func
+                  //   doc_root
+                  ),
               stream_(std::move(stream), ctx)
         {
         }

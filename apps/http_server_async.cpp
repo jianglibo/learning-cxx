@@ -2,6 +2,19 @@
 #include <fstream>
 #include <iostream>
 
+http::message_generator handler_common(server_async::EmptyBodyRequest ebr)
+{
+    return http::response<http::string_body>(http::status::ok, ebr.version());
+}
+
+// http::message_generator plain_handler()
+// {
+// }
+// http::message_generator ssl_handler(std::shared_ptr<server_async::ssl_http_session> http_session, server_async::EmptyBodyRequest ebr)
+// {
+//     return http::response<http::string_body>(http::status::ok, ebr.version());
+// }
+
 int main(int argc, char *argv[])
 {
     // Check command line arguments.
@@ -21,9 +34,20 @@ int main(int argc, char *argv[])
     const char *cert_filepath = "apps/fixtures/cert.pem";
     const char *key_filepath = "apps/fixtures/key.pem";
     const char *dh_filepath = "apps/fixtures/dh.pem";
-    server.start(server_async::read_whole_file(cert_filepath),
-                 server_async::read_whole_file(key_filepath),
-                 server_async::read_whole_file(dh_filepath));
+
+    server_async::SSLCertHolder ssl_cert_holder{server_async::read_whole_file(cert_filepath),
+                                                server_async::read_whole_file(key_filepath),
+                                                server_async::read_whole_file(dh_filepath)};
+
+    server_async::HandlerCommon handler_common = [&doc_root](server_async::EmptyBodyRequest ebr)
+    {
+        http::response<http::string_body> res{http::status::ok, ebr.version()};
+        res.keep_alive(ebr.keep_alive());
+
+        return std::make_shared<server_async::FileRequestHandler>(*doc_root, std::move(ebr))->handle_request();
+    };
+
+    server.start(ssl_cert_holder, handler_common);
 
     return EXIT_SUCCESS;
 }

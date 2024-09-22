@@ -167,52 +167,61 @@ namespace server_async
     {
       // boost::urls::url_view url{req_.target()};
       // if target has schema
-      std::string tg;
-      std::string default_port;
-      if (req_.target().starts_with("https:"))
-      {
-        tg = req_.target();
-        default_port = "443";
-      }
-      else if (req_.target().starts_with("http:"))
-      {
-        tg = req_.target();
-        default_port = "80";
-      }
-      else
-      {
-        tg = std::string{"//"} + req_.target().data();
-        default_port = "80";
-      }
+      // std::string tg;
+      // std::string default_port;
+      // if (req_.target().starts_with("https:"))
+      // {
+      //   tg = req_.target();
+      //   default_port = "443";
+      // }
+      // else if (req_.target().starts_with("http:"))
+      // {
+      //   tg = req_.target();
+      //   default_port = "80";
+      // }
+      // else
+      // {
+      //   tg = std::string{"//"} + req_.target().data();
+      //   default_port = "80";
+      // }
 
-      std::cout << "target_endpoints_:" << tg << std::endl;
-      auto ru = boost::urls::parse_uri_reference(tg);
-      std::cout << "parse result: " << ru.value() << std::endl;
-      if (ru.has_error())
+      // std::cout << "target_endpoints_:" << tg << std::endl;
+      // auto ru = boost::urls::parse_uri_reference(tg);
+      // std::cout << "parse result: " << ru.value() << std::endl;
+      // if (ru.has_error())
+      // {
+      //   std::cout << "Error parsing target: " << ru.error().message() << std::endl;
+      //   return;
+      // }
+      // // parse manually. example.com:443
+      // const std::string &host = ru.value().host();
+      // std::string port;
+      // if (ru.value().has_port())
+      // {
+      //   port = ru.value().port();
+      // }
+      // else
+      // {
+      //   port = default_port;
+      // }
+
+      int deliminator = req_.target().find(':');
+      if (deliminator == std::string::npos)
       {
-        std::cout << "Error parsing target: " << ru.error().message() << std::endl;
+        std::cerr << "Error parsing target: " << req_.target() << std::endl;
         return;
       }
-      // parse manually. example.com:443
-      const std::string &host = ru.value().host();
-      std::string port;
-      if (ru.value().has_port())
-      {
-        port = ru.value().port();
-      }
-      else
-      {
-        port = default_port;
-      }
+      const std::string &host = req_.target().substr(0, deliminator);
+      std::string port = req_.target().substr(deliminator + 1);
 
       std::cout << "target_endpoints_:" << req_.target() << ", start resolve: " << host << ", port: " << port << std::endl;
-      tcp::resolver::results_type target_endpoints_resolved_ = resolver_.resolve(host, port);
-      std::cout << "result: " << target_endpoints_resolved_.begin()->endpoint() << std::endl;
+      // tcp::resolver::results_type target_endpoints_resolved_ = resolver_.resolve(host, port);
       resolver_.async_resolve(host, port,
                               [self = derived().shared_from_this()](boost::system::error_code ec, tcp::resolver::results_type results)
                               {
                                 if (!ec)
                                 {
+                                  std::cout << "result: " << results.begin()->endpoint() << std::endl;
                                   boost::asio::async_connect(self->remote_socket_, results,
                                                              [self](boost::system::error_code ec, const tcp::endpoint &)
                                                              {
