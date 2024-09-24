@@ -75,6 +75,7 @@ namespace server_async
     void send_parsed_request()
     {
       // req_.erase(http::field::proxy_connection);
+    
       // std::ostringstream oss;
       // beast::error_code ec;
       // server_async::write_ostream(oss, req_, ec);

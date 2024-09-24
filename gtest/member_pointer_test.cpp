@@ -153,7 +153,7 @@ TEST(MemberInitializeTest, OrderMatters)
 
 static void __f1(int &&a)
 {
-	std::cout << a + 1<< std::endl;
+	std::cout << a + 1 << std::endl;
 }
 
 TEST(MemberInitializeTest, LR)
@@ -164,5 +164,51 @@ TEST(MemberInitializeTest, LR)
 	// int{1} = 5;
 	*(new int(1)) = 5;
 	__f1(std::move(*(new int[5])));
+}
 
+struct __functor
+{
+	int operator()(int a, int b)
+	{
+		return a + b;
+	}
+
+	int operator()(int a, int b, int c)
+	{
+		return a + b + c;
+	}
+};
+
+static int accept_function(std::function<int(int, int)> f)
+{
+	return f(1, 2);
+}
+static int accept_function_1(std::function<int(int, int, int)> f)
+{
+	return f(1, 2, 3);
+}
+
+TEST(FunctorTest, AsFunction)
+{
+	int v = accept_function(__functor());
+	ASSERT_EQ(v, 3);
+}
+
+class Parent_
+{
+};
+
+class Child_ : public Parent_
+{
+};
+
+static void
+accept_parent(Parent_ &p)
+{
+}
+
+TEST(FunctorTest, ParentChild)
+{
+	Child_ c{};
+	accept_parent(c);
 }

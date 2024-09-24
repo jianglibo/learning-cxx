@@ -3,6 +3,9 @@
 #include "server_async.h"
 #include <boost/url.hpp>
 #include <filesystem>
+#include "http_server_async.hpp"
+#include "models.hpp"
+#include "json_util.hpp"
 
 TEST(BoostBeastClientTest, HTTP_BLOCK)
 {
@@ -146,6 +149,7 @@ TEST(UrlTest, UrlNoScheme)
     ASSERT_FALSE(url_view.has_scheme());
 
     boost::system::result<boost::urls::url> ru = boost::urls::parse_uri_reference(url);
+    ASSERT_FALSE(ru.has_error());
     if (ru.has_error())
     {
         std::cerr << "Error: " << ru.error().message() << std::endl;
@@ -155,6 +159,11 @@ TEST(UrlTest, UrlNoScheme)
 
     ASSERT_STREQ(url_view.host().data(), "www.example.com");
     ASSERT_STREQ(url_view.port().data(), "");
+
+    ru = boost::urls::parse_origin_form("/abc?txt");
+    ASSERT_FALSE(ru.has_error());
+    ASSERT_STREQ(ru.value().path().data(), "/abc");
+    ASSERT_STREQ(ru.value().query().data(), "txt");
 }
 
 TEST(ServerTest, start)
@@ -178,18 +187,55 @@ TEST(ServerTest, start)
                                                 server_async::read_whole_file(key_filepath),
                                                 server_async::read_whole_file(dh_filepath)};
 
-    server_async::HandlerCommon handler_common = [&doc_root](server_async::EmptyBodyRequest ebr)
-    {
-        http::response<http::string_body> res{http::status::ok, ebr.version()};
-        res.keep_alive(ebr.keep_alive());
+    // server_async::HandlerFunc<server_async::plain_http_session> plain_handler =
+    //     std::bind(&handler<server_async::plain_http_session>, std::placeholders::_1, std::placeholders::_2);
+    // server_async::HandlerFunc<server_async::ssl_http_session> ssl_handler =
+    //     std::bind(&handler<server_async::ssl_http_session>, std::placeholders::_1, std::placeholders::_2);
+    // server_async::HandlerCommon handler_common = [&doc_root](server_async::EmptyBodyParser ebr,
+    //                                                          server_async::SessionVariant sv)
+    // {
+    //     http::response<http::string_body> res{http::status::ok, ebr.version()};
+    //     res.keep_alive(ebr.keep_alive());
 
-        return std::make_shared<server_async::FileRequestHandler>(*doc_root, std::move(ebr))->handle_request();
-    };
+    //     auto file_res = std::make_shared<server_async::FileRequestHandler>(*doc_root, std::move(ebr))->handle_request();
+    //     std::visit([&file_res](auto &&arg)
+    //                { arg->queue_write(std::move(file_res)); },
+    //                sv);
+    // };
 
-    std::thread t([&server, &ssl_cert_holder, &handler_common]()
-                  { server.start(ssl_cert_holder, handler_common); });
+    handler<server_async::plain_http_session> plain_handler;
+    handler<server_async::ssl_http_session> ssl_handler;
+
+    std::thread t([&server, &ssl_cert_holder, &plain_handler, &ssl_handler]()
+                  { server.start(ssl_cert_holder, plain_handler, ssl_handler); });
 
     std::this_thread::sleep_for(std::chrono::seconds(3));
     server.stop();
     t.join();
+}
+
+TEST(ModelsTest, JsonResponse)
+{
+    server_async::ResponseData responseData{"123"};
+    server_async::ResponseData responseData1 = responseData;
+    server_async::ApiResponseSuccess successResponse("Resource created successfully.", "2023-09-24T15:30:45Z", "2023-09-24T15:30:45Z", responseData);
+
+    // Example of an error response
+    std::vector<server_async::Error> errorList = {
+        {"name", "ERR_NAME_REQUIRED", "Name is required."},
+        {"email", "ERR_EMAIL_INVALID", "Email format is invalid."}};
+    server_async::ApiResponseError errorResponse("Validation failed.", "2023-09-24T15:30:45Z", "2023-09-24T15:30:45Z", errorList);
+
+    std::cout << "start json::value_from" << std::endl;
+    json::value jv = json::value_from(errorResponse);
+    server_async::pretty_print(std::cout, jv);
+
+    jv = json::value_from(successResponse);
+    server_async::pretty_print(std::cout, jv);
+
+    namespace json = boost::json;
+    jv = json::object{};
+    jv.as_object()["data"] = 1;
+    std::cout << jv << "\n";
+    ASSERT_TRUE(jv.as_object().contains("data"));
 }

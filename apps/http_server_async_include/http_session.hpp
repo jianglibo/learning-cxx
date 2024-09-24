@@ -11,8 +11,6 @@
 
 namespace server_async
 {
-    class plain_http_session;
-    class ssl_http_session;
     //------------------------------------------------------------------------------
 
     // Handles an HTTP server connection.
@@ -22,7 +20,7 @@ namespace server_async
     class http_session
     {
         std::shared_ptr<std::string const> doc_root_;
-        HandlerFunc<Derived> &handle_func;
+        HandlerEntryPoint<Derived> &handle_func;
 
         // Access the derived class, this is part of
         // the Curiously Recurring Template Pattern idiom.
@@ -39,14 +37,12 @@ namespace server_async
         // construct it from scratch it at the beginning of each new message.
         boost::optional<http::request_parser<http::empty_body>> parser_;
 
-    protected:
-        beast::flat_buffer buffer_;
-
     public:
+        beast::flat_buffer buffer_;
         // Construct the session
         http_session(
             beast::flat_buffer buffer,
-            HandlerFunc<Derived> &handle_func)
+            HandlerEntryPoint<Derived> &handle_func)
             // std::shared_ptr<std::string const> const &doc_root
             // )
             : handle_func(handle_func), buffer_(std::move(buffer))
@@ -171,11 +167,28 @@ namespace server_async
 
             // Send the response
             // queue_write(handle_request(*doc_root_, parser_->release()));
-            assert(handle_func);
-            queue_write(handle_func(derived().shared_from_this(), parser_->release()));
+            // assert(handle_func);
+            // http::request_parser<http::empty_body> &&v = std::move(parser_.get());
+            // http::request_parser<http::empty_body> v = parser_.get();
+            // http::request_parser<http::empty_body> r1{};
+            // http::request_parser<http::empty_body> r2 = r1;
+            // http::request_parser<http::empty_body> r2{r1};
+            // http::request_parser<http::empty_body> r2{std::move(r1)};
+            // http::request_parser<http::string_body> r2{std::move(r1)};
+
+            auto const &headers = parser_->get().base();
+
+            handle_func(derived().shared_from_this(), std::move(parser_.get()));
             // queue_write(std::make_shared<FileRequestHandler>(*doc_root_, parser_->release())->handle_request());
 
             // If we aren't at the queue limit, try to pipeline another request
+            // if handle_func take long time to call queue_write, the queue may exceed the limit. but it's no harm.
+            // if (response_queue_.size() < queue_limit)
+            //     do_read();
+        }
+
+        void continue_read_if_needed()
+        {
             if (response_queue_.size() < queue_limit)
                 do_read();
         }
@@ -185,6 +198,9 @@ namespace server_async
         {
             // Allocate and store the work
             response_queue_.push(std::move(response));
+            // // move from on_read to here. because the handle_func may access the underlying buffer.
+            // if (response_queue_.size() < queue_limit)
+            //     do_read();
 
             // If there was no previous work, start the write loop
             if (response_queue_.size() == 1)
@@ -229,7 +245,8 @@ namespace server_async
             }
 
             // Resume the read if it has been paused
-            if (response_queue_.size() == queue_limit)
+            // if (response_queue_.size() == queue_limit)
+            if (response_queue_.size() >= queue_limit)
                 do_read();
 
             response_queue_.pop();
@@ -252,7 +269,7 @@ namespace server_async
         plain_http_session(
             beast::tcp_stream &&stream,
             beast::flat_buffer &&buffer,
-            HandlerFunc<plain_http_session> &handle_func)
+            HandlerEntryPoint<plain_http_session> &handle_func)
             : http_session<plain_http_session>(
                   std::move(buffer), handle_func),
               stream_(std::move(stream))
@@ -319,7 +336,7 @@ namespace server_async
             beast::tcp_stream &&stream,
             ssl::context &ctx,
             beast::flat_buffer &&buffer,
-            HandlerFunc<ssl_http_session> &handle_func)
+            HandlerEntryPoint<ssl_http_session> &handle_func)
             // std::shared_ptr<std::string const> const &doc_root
             // )
             : http_session<ssl_http_session>(

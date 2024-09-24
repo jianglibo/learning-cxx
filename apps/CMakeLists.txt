@@ -8,6 +8,7 @@ find_package(Boost REQUIRED COMPONENTS url)
 find_package(OpenSSL REQUIRED)
 find_package(Libssh2 CONFIG REQUIRED)
 find_package(ZLIB REQUIRED)
+find_package(Boost REQUIRED COMPONENTS json)
 
 
 add_executable(${APP_NAME} proxy-server.cpp ../asio-server/server-async-simple.cpp)
@@ -27,6 +28,7 @@ target_link_libraries(${BOOST_SERVER}
     PRIVATE Boost::asio
     PRIVATE Boost::beast
     PRIVATE Boost::url
+    PRIVATE Boost::json
     PRIVATE  ZLIB::ZLIB 
     PRIVATE OpenSSL::SSL 
     PRIVATE  OpenSSL::Crypto 

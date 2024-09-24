@@ -8,7 +8,7 @@
     "fmt",
     "gtest",
     {
-      "name": "nlohmann-json"
+      "name": "boost-json"
     },
     "spdlog",
     {
@@ -30,9 +30,6 @@
         "openssl",
         "zlib"
       ]
-    },
-    {
-      "name": "workflow"
     },
     {
       "name": "zlib"

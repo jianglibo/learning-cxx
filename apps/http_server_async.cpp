@@ -1,16 +1,17 @@
 #include "server_async.h"
 #include <fstream>
 #include <iostream>
+#include "http_server_async.hpp"
 
-http::message_generator handler_common(server_async::EmptyBodyRequest ebr)
-{
-    return http::response<http::string_body>(http::status::ok, ebr.version());
-}
+// http::message_generator handler_common(server_async::EmptyBodyParser ebr)
+// {
+//     return http::response<http::string_body>(http::status::ok, ebr.version());
+// }
 
 // http::message_generator plain_handler()
 // {
 // }
-// http::message_generator ssl_handler(std::shared_ptr<server_async::ssl_http_session> http_session, server_async::EmptyBodyRequest ebr)
+// http::message_generator ssl_handler(std::shared_ptr<server_async::ssl_http_session> http_session, server_async::EmptyBodyParser ebr)
 // {
 //     return http::response<http::string_body>(http::status::ok, ebr.version());
 // }
@@ -39,15 +40,18 @@ int main(int argc, char *argv[])
                                                 server_async::read_whole_file(key_filepath),
                                                 server_async::read_whole_file(dh_filepath)};
 
-    server_async::HandlerCommon handler_common = [&doc_root](server_async::EmptyBodyRequest ebr)
-    {
-        http::response<http::string_body> res{http::status::ok, ebr.version()};
-        res.keep_alive(ebr.keep_alive());
 
-        return std::make_shared<server_async::FileRequestHandler>(*doc_root, std::move(ebr))->handle_request();
-    };
-
-    server.start(ssl_cert_holder, handler_common);
+    // server_async::HandlerFunc<server_async::plain_http_session> plain_handler =
+    //     std::bind(&handler<server_async::plain_http_session>, std::placeholders::_1, std::placeholders::_2);
+    // server_async::HandlerFunc<server_async::ssl_http_session> ssl_handler =
+    //     std::bind(&handler<server_async::ssl_http_session>, std::placeholders::_1, std::placeholders::_2);
+    // auto plain_handler =
+    //     std::bind(&handler<server_async::plain_http_session>, std::placeholders::_1, std::placeholders::_2);
+    // auto ssl_handler =
+    //     std::bind(&handler<server_async::ssl_http_session>, std::placeholders::_1, std::placeholders::_2);
+    handler<server_async::plain_http_session> plain_handler{};
+    handler<server_async::ssl_http_session> ssl_handler{};
+    server.start(ssl_cert_holder, plain_handler, ssl_handler);
 
     return EXIT_SUCCESS;
 }

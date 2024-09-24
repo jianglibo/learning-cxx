@@ -3,9 +3,18 @@
 #ifndef SERVER_ASYNC_H
 #define SERVER_ASYNC_H
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
+
+#include <filesystem>
+
 #include "server_async_util.h"
 #include "http_session.hpp"
 #include "http_handler_util.hpp"
+
 
 namespace server_async
 {
@@ -19,16 +28,16 @@ namespace server_async
         ssl::context &ctx_;
         std::shared_ptr<std::string const> doc_root_;
         beast::flat_buffer buffer_;
-        HandlerFunc<plain_http_session> &plain_handle_func;
-        HandlerFunc<ssl_http_session> &ssl_handle_func;
+        HandlerEntryPoint<plain_http_session> &plain_handle_func;
+        HandlerEntryPoint<ssl_http_session> &ssl_handle_func;
 
     public:
         explicit detect_session(
             tcp::socket &&socket,
             ssl::context &ctx,
             std::shared_ptr<std::string const> const &doc_root,
-            HandlerFunc<plain_http_session> &plain_handle_func,
-            HandlerFunc<ssl_http_session> &ssl_handle_func)
+            HandlerEntryPoint<plain_http_session> &plain_handle_func,
+            HandlerEntryPoint<ssl_http_session> &ssl_handle_func)
             : stream_(std::move(socket)), ctx_(ctx), doc_root_(doc_root), plain_handle_func(plain_handle_func), ssl_handle_func(ssl_handle_func)
         {
         }
@@ -96,8 +105,8 @@ namespace server_async
         ssl::context &ctx_;
         tcp::acceptor acceptor_;
         std::shared_ptr<std::string const> doc_root_;
-        HandlerFunc<plain_http_session> &plain_handle_func;
-        HandlerFunc<ssl_http_session> &ssl_handle_func;
+        HandlerEntryPoint<plain_http_session> &plain_handle_func;
+        HandlerEntryPoint<ssl_http_session> &ssl_handle_func;
 
     public:
         listener(
@@ -105,8 +114,8 @@ namespace server_async
             ssl::context &ctx,
             tcp::endpoint endpoint,
             std::shared_ptr<std::string const> const &doc_root,
-            HandlerFunc<plain_http_session> &plain_handle_func,
-            HandlerFunc<ssl_http_session> &ssl_handle_func)
+            HandlerEntryPoint<plain_http_session> &plain_handle_func,
+            HandlerEntryPoint<ssl_http_session> &ssl_handle_func)
             : ioc_(ioc), ctx_(ctx), acceptor_(net::make_strand(ioc)), doc_root_(doc_root), plain_handle_func(plain_handle_func), ssl_handle_func(ssl_handle_func)
         {
             beast::error_code ec;
@@ -217,28 +226,21 @@ namespace server_async
         }
 
         void start(SSLCertHolder ssl_cert_holder,
-                   std::function<http::message_generator(EmptyBodyRequest)> &handler_common)
-        {
-
-            HandlerFunc<plain_http_session> plain_handler = [&handler_common](std::shared_ptr<plain_http_session> http_session,
-                                                                              EmptyBodyRequest ebr)
-            {
-                return handler_common(ebr);
-            };
-            HandlerFunc<ssl_http_session> ssl_handler = [&handler_common](std::shared_ptr<ssl_http_session> http_session,
-                                                                          EmptyBodyRequest ebr)
-            {
-                return handler_common(ebr);
-            };
-            start(ssl_cert_holder, plain_handler, ssl_handler);
-        }
-        void start(SSLCertHolder ssl_cert_holder,
-                   HandlerFunc<plain_http_session> &plain_handler,
-                   HandlerFunc<ssl_http_session> &ssl_handler)
+                   HandlerEntryPoint<plain_http_session> &plain_handler,
+                   HandlerEntryPoint<ssl_http_session> &ssl_handler)
         {
             // HandlerFunc<plain_http_session> plain_handler_func = plain_handler;
             // This holds the self-signed certificate used by the server
             load_server_certificate(ctx, ssl_cert_holder.cert, ssl_cert_holder.key, ssl_cert_holder.dh);
+#ifdef _WIN32
+            DWORD pid = GetCurrentProcessId(); // Get PID on Windows
+            std::cout << "Process ID (Windows): " << pid << std::endl;
+#else
+            pid_t pid = getpid(); // Get PID on Linux
+            std::cout << "Process ID (Linux): " << pid << std::endl;
+#endif
+            std::filesystem::path cwd = std::filesystem::current_path();
+            std::cout << "Current working directory: " << cwd << std::endl;
 
             // Create and launch a listening port
             std::make_shared<listener>(

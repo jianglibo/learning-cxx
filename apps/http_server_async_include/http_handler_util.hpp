@@ -9,7 +9,10 @@
 namespace server_async
 {
 
+    class plain_http_session;
+    class ssl_http_session;
     using EmptyBodyRequest = http::request<http::empty_body>;
+    using EmptyBodyParser = http::request_parser<http::empty_body>;
 
     struct SSLCertHolder
     {
@@ -18,10 +21,30 @@ namespace server_async
         std::string dh;
     };
 
-    template <typename Derived>
-    using HandlerFunc = std::function<http::message_generator(std::shared_ptr<Derived>, EmptyBodyRequest)>;
-    using HandlerCommon = std::function<http::message_generator(server_async::EmptyBodyRequest)>;
-    // using HandlerFunc = std::function<http::message_generator(std::shared_ptr<Derived>, EmptyBodyRequest)>;
+    using SessionVariant = std::variant<std::shared_ptr<plain_http_session>, std::shared_ptr<ssl_http_session>>;
+    using ResponseCreator = std::function<void(http::message_generator &&)>;
+
+    template <typename SessionType>
+    struct WriteQueueCallback
+    {
+        std::shared_ptr<SessionType> session;
+        void operator()(http::message_generator &&mg)
+        {
+            session->queue_write(std::move(mg));
+        }
+    };
+
+    // template <typename SessionType>
+    // using HandlerFunc = std::function<void(std::shared_ptr<SessionType>, EmptyBodyParser)>;
+
+    template <typename SessionType>
+    struct HandlerEntryPoint
+    {
+        virtual void operator()(std::shared_ptr<SessionType>, EmptyBodyParser &&) = 0;
+    };
+
+    // using HandlerCommon = std::function<void(EmptyBodyParser, SessionVariant)>;
+    // using HandlerFunc = std::function<http::message_generator(std::shared_ptr<Derived>, EmptyBodyParser)>;
 
     // Return a reasonable mime type based on the extension of a file.
     inline beast::string_view
