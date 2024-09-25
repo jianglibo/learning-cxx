@@ -40,7 +40,6 @@ int main(int argc, char *argv[])
                                                 server_async::read_whole_file(key_filepath),
                                                 server_async::read_whole_file(dh_filepath)};
 
-
     // server_async::HandlerFunc<server_async::plain_http_session> plain_handler =
     //     std::bind(&handler<server_async::plain_http_session>, std::placeholders::_1, std::placeholders::_2);
     // server_async::HandlerFunc<server_async::ssl_http_session> ssl_handler =
@@ -49,8 +48,8 @@ int main(int argc, char *argv[])
     //     std::bind(&handler<server_async::plain_http_session>, std::placeholders::_1, std::placeholders::_2);
     // auto ssl_handler =
     //     std::bind(&handler<server_async::ssl_http_session>, std::placeholders::_1, std::placeholders::_2);
-    handler<server_async::plain_http_session> plain_handler{};
-    handler<server_async::ssl_http_session> ssl_handler{};
+    server_async::handler<server_async::plain_http_session> plain_handler{};
+    server_async::handler<server_async::ssl_http_session> ssl_handler{};
     server.start(ssl_cert_holder, plain_handler, ssl_handler);
 
     return EXIT_SUCCESS;

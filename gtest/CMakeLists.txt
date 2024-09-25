@@ -8,6 +8,9 @@ find_package(Eigen3 CONFIG REQUIRED)
 find_package(Boost REQUIRED COMPONENTS asio)
 find_package(Boost REQUIRED COMPONENTS beast)
 find_package(Boost REQUIRED COMPONENTS url)
+find_package(Boost REQUIRED COMPONENTS uuid)
+
+find_package(date CONFIG REQUIRED)
 
 find_package(OpenSSL REQUIRED)
 find_package(Libssh2 CONFIG REQUIRED)
@@ -54,6 +57,8 @@ target_link_libraries(
   PRIVATE Boost::asio
   PRIVATE Boost::beast
   PRIVATE Boost::url
+  PRIVATE Boost::uuid
+  PRIVATE date::date date::date-tz
   PRIVATE PRIVATE Boost::json
   PRIVATE  ZLIB::ZLIB 
   PRIVATE OpenSSL::SSL 
@@ -98,6 +103,18 @@ target_link_libraries(
 # -----------------------------------member_pointer_test.cpp---------------------------------------------
 set(T_NAME member_pointer_test)
 add_executable(${T_NAME} member_pointer_test.cpp)
+
+target_link_libraries(
+  ${T_NAME}
+  PRIVATE GTest::gtest GTest::gtest_main GTest::gmock GTest::gmock_main
+  )
+  add_test(
+    NAME ${T_NAME}
+    COMMAND ${T_NAME}
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+# -----------------------------------reference_test.cpp---------------------------------------------
+set(T_NAME reference_test)
+add_executable(${T_NAME} reference_test.cpp)
 
 target_link_libraries(
   ${T_NAME}

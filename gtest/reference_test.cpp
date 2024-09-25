@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <string>
 // [n] 总是指对象（包括指针）的数量， 而不是引用的数量，引用不是对象，不存在引用的数组。
 static void reference_to_array(int (&arr)[2])
 {

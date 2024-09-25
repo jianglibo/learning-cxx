@@ -4,6 +4,9 @@ set(APP_NAME proxy-server)
 find_package(Boost REQUIRED COMPONENTS asio)
 find_package(Boost REQUIRED COMPONENTS beast)
 find_package(Boost REQUIRED COMPONENTS url)
+find_package(Boost REQUIRED COMPONENTS uuid)
+
+find_package(date CONFIG REQUIRED)
 # Find OpenSSL libraries
 find_package(OpenSSL REQUIRED)
 find_package(Libssh2 CONFIG REQUIRED)
@@ -29,7 +32,9 @@ target_link_libraries(${BOOST_SERVER}
     PRIVATE Boost::beast
     PRIVATE Boost::url
     PRIVATE Boost::json
-    PRIVATE  ZLIB::ZLIB 
+    PRIVATE Boost::uuid
+    PRIVATE date::date date::date-tz
+    PRIVATE ZLIB::ZLIB 
     PRIVATE OpenSSL::SSL 
     PRIVATE  OpenSSL::Crypto 
     )

@@ -3,6 +3,8 @@
 #define SERVER_ASYNC_JSON_UTIL_H
 
 #include <boost/json.hpp>
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
 
 namespace json = boost::json;
 
@@ -90,6 +92,12 @@ namespace server_async
 
         if (indent->empty())
             os << "\n";
+    }
+
+    boost::uuids::uuid generate_uuid()
+    {
+        static boost::uuids::random_generator generator;
+        return generator();
     }
 }
 

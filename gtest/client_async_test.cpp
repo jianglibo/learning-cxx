@@ -6,6 +6,8 @@
 #include "http_server_async.hpp"
 #include "models.hpp"
 #include "json_util.hpp"
+#include "string_util.hpp"
+#include <boost/uuid/uuid_io.hpp>
 
 TEST(BoostBeastClientTest, HTTP_BLOCK)
 {
@@ -203,8 +205,8 @@ TEST(ServerTest, start)
     //                sv);
     // };
 
-    handler<server_async::plain_http_session> plain_handler;
-    handler<server_async::ssl_http_session> ssl_handler;
+    server_async::handler<server_async::plain_http_session> plain_handler;
+    server_async::handler<server_async::ssl_http_session> ssl_handler;
 
     std::thread t([&server, &ssl_cert_holder, &plain_handler, &ssl_handler]()
                   { server.start(ssl_cert_holder, plain_handler, ssl_handler); });
@@ -238,4 +240,112 @@ TEST(ModelsTest, JsonResponse)
     jv.as_object()["data"] = 1;
     std::cout << jv << "\n";
     ASSERT_TRUE(jv.as_object().contains("data"));
+}
+
+TEST(StringReferenceTest, findsome)
+{
+    std::string path1 = "/hello";
+    size_t pos2 = 0;
+    std::string_view id = server_async::next_segment(path1, pos2);
+    ASSERT_STREQ(id.data(), "hello") << "find id in path.";
+    ASSERT_EQ(id.length(), 5) << "find id length in path.";
+    ASSERT_EQ(pos2, 6) << "find pos1 in path.";
+
+    std::string_view nextid = server_async::next_segment(path1, pos2);
+
+    ASSERT_TRUE(nextid.empty()) << "find id in path.";
+
+    std::string path2 = "/tasks/123";
+    size_t pos3 = 0;
+    std::string_view id2 = server_async::next_segment(path2, pos3);
+    ASSERT_TRUE(id2 == "tasks") << "= to string_view";
+
+    ASSERT_EQ(id2, "tasks") << "find id in path.";
+    ASSERT_EQ(id2.length(), 5) << "find id length in path.";
+    ASSERT_EQ(pos3, 6) << "find pos1 in path.";
+    std::string_view id3 = server_async::next_segment(path2, pos3);
+    ASSERT_EQ(id3, "123") << "find id in path.";
+    ASSERT_EQ(id3.length(), 3) << "find id length in path.";
+
+    std::string path3 = "/tasks/123/";
+    size_t pos4 = 0;
+    std::string_view id4 = server_async::next_segment(path3, pos4);
+    ASSERT_EQ(id4, "tasks") << "find id in path.";
+    ASSERT_EQ(id4.length(), 5) << "find id length in path.";
+    ASSERT_EQ(pos4, 6) << "find pos1 in path.";
+    std::string_view id5 = server_async::next_segment(path3, pos4);
+    ASSERT_EQ(id5, "123") << "find id in path.";
+    ASSERT_EQ(id5.length(), 3) << "find id length in path.";
+    std::string_view id6 = server_async::next_segment(path3, pos4);
+    ASSERT_TRUE(id6.empty()) << "find id in path.";
+
+    std::string path4 = "";
+    size_t pos5 = 0;
+    std::string_view id7 = server_async::next_segment(path4, pos5);
+    ASSERT_TRUE(id7.empty()) << "find id in path.";
+
+    std::string path5 = "/";
+    size_t pos6 = 0;
+    std::string_view id8 = server_async::next_segment(path5, pos6);
+    ASSERT_TRUE(id8.empty()) << "find id in path.";
+
+    // std::string s = "hello world hey.";
+    // auto it = std::find(s.begin(), s.end(), 'h');
+    // ASSERT_EQ(*it, 'h') << "find 'h' in string.";
+    // std::string to_find = "world";
+    // size_t pos = s.find(to_find);
+    // ASSERT_EQ(pos, 6) << "find 'world' in string.";
+    // size_t len = to_find.length(); // o(1)
+    // // std::strlen("world") is O(n)
+    // ASSERT_EQ(len, 5) << "size of 'world' in string.";
+    // std::string upper = "WORLD";
+
+    // s.replace(pos, len, upper);
+
+    // ASSERT_STREQ(s.c_str(), "hello WORLD hey.") << "replace 'world' with 'WORLD' in string.";
+
+    // std::string str = "Hello World! World is beautiful.";
+
+    // to_find = "World";
+    // std::string to_replace = "Universe";
+
+    // // Replace all occurrences of "World" with "Universe"
+    // pos = 0;
+    // while ((pos = str.find(to_find, pos)) != std::string::npos)
+    // {
+    // 	str.replace(pos, to_find.length(), to_replace);
+    // 	pos += to_replace.length(); // Move to the next position
+    // }
+
+    // ASSERT_TRUE(s.compare(0, 4, "hello")) << "compare string.";
+
+    // std::cout << str << std::endl; // Output: Hello Universe! Universe is beautiful.
+
+    // std::string path = "/tasks/";
+    // std::string prefix_tasks = "/tasks";
+    // size_t pos1 = 0;
+    // if (path.empty() || path == "/")
+    // {
+    // 	std::cout << "root path" << std::endl;
+    // }
+    // else if (path.compare(0, prefix_tasks.size(), prefix_tasks) == 0)
+    // {
+    // 	pos1 = prefix_tasks.size();
+    // 	get_path_param(path, pos1);
+    // }
+    // else if (path == "/index.html")
+    // {
+    // 	std::cout << "index.html" << std::endl;
+    // }
+    // else if (path == "/favicon.ico")
+    // {
+    // 	std::cout << "favicon.ico" << std::endl;
+    // }
+    // else
+    // {
+    // 	std::cout << "unknown path" << std::endl;
+    // }
+
+    boost::uuids::uuid uuid = server_async::generate_uuid();
+    std::cout << uuid << std::endl;
 }

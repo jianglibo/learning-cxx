@@ -10,6 +10,12 @@
     {
       "name": "boost-json"
     },
+    {
+      "name": "date"
+    },
+    {
+      "name": "boost-uuid"
+    },
     "spdlog",
     {
       "name": "vcpkg-cmake",

@@ -25,3 +25,4 @@ my_profile_report.nsys-rep
 fixture_generated/*
 tt.log
 _deps/
+gtest/tmp.txt
