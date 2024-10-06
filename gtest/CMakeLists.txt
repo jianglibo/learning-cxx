@@ -1,4 +1,11 @@
 # include catch
+
+set(CMAKE_CXX_STANDARD 17)
+
+set(ASAN_FLAGS "-fsanitize=address -fno-omit-frame-pointer -g")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${ASAN_FLAGS}")
+set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS} ${ASAN_FLAGS}")
+
 find_package(spdlog CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
 find_package(fmt CONFIG REQUIRED)
