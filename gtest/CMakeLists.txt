@@ -124,3 +124,16 @@ target_link_libraries(
     NAME ${T_NAME}
     COMMAND ${T_NAME}
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+# -----------------------------------string_all_test.cpp---------------------------------------------
+set(T_NAME string_all_test)
+add_executable(${T_NAME} string_all_test.cpp)
+
+target_link_libraries(
+  ${T_NAME}
+  PRIVATE GTest::gtest GTest::gtest_main GTest::gmock GTest::gmock_main
+  )
+  add_test(
+    NAME ${T_NAME}
+    COMMAND ${T_NAME}
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
